@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --paper: #e9eeed;
+  --sheet: #ffffff;
+  --ink: #1b2430;
+  --ink-dim: #5b6672;
+  --ink-faint: #8b96a1;
+  --border: rgba(27, 36, 48, 0.14);
+  --power: #a83e26;
+  --signal: #1f6e62;
+  --danger: #b3261e;
+  --font-display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+  --font-body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0d1316;
+    --sheet: #151c20;
+    --ink: #dce6e8;
+    --ink-dim: #94a5a8;
+    --ink-faint: #5f7275;
+    --border: rgba(220, 230, 232, 0.16);
+    --power: #e2794f;
+    --signal: #4fbfa8;
+    --danger: #f2887e;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+input {
+  font-family: var(--font-body);
+}
+
+table {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+.env.local
+web-dashboard/node_modules/
+web-dashboard/dist/
+.DS_Store
+*.log
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies

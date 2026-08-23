@@ -1,0 +1,651 @@
+<title>IGNLOCK Schematic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --paper:#e9eeed;
+    --sheet:#f9fbfa;
+    --ink:#1b2430;
+    --ink-dim:#5b6672;
+    --ink-faint:#8b96a1;
+    --grid-line: rgba(27,36,48,0.07);
+    --border: rgba(27,36,48,0.22);
+    --power:#a83e26;
+    --signal:#1f6e62;
+    --bus:#5b4d92;
+    --warn:#96650f;
+    --font-display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+    --font-body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0d1316;
+      --sheet:#131a1e;
+      --ink:#dce6e8;
+      --ink-dim:#94a5a8;
+      --ink-faint:#5f7275;
+      --grid-line: rgba(220,230,232,0.06);
+      --border: rgba(220,230,232,0.20);
+      --power:#e2794f;
+      --signal:#4fbfa8;
+      --bus:#a594d6;
+      --warn:#e0b84a;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0d1316;
+    --sheet:#131a1e;
+    --ink:#dce6e8;
+    --ink-dim:#94a5a8;
+    --ink-faint:#5f7275;
+    --grid-line: rgba(220,230,232,0.06);
+    --border: rgba(220,230,232,0.20);
+    --power:#e2794f;
+    --signal:#4fbfa8;
+    --bus:#a594d6;
+    --warn:#e0b84a;
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--font-body);
+    margin:0;
+    padding:40px 20px 80px;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size:24px 24px;
+  }
+
+  .wrap{ max-width:1180px; margin:0 auto; display:flex; flex-direction:column; gap:44px; }
+
+  /* ---------- Masthead ---------- */
+  .masthead{ display:flex; flex-direction:column; gap:10px; }
+  .kicker{
+    font-family:var(--font-mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-dim);
+  }
+  h1{
+    font-family:var(--font-display); font-weight:800; text-transform:uppercase;
+    font-size:clamp(34px,5.4vw,58px); line-height:.96; letter-spacing:.01em; margin:0;
+    text-wrap:balance;
+  }
+  .lede{ font-size:15.5px; line-height:1.6; color:var(--ink-dim); max-width:62ch; margin:0; }
+
+  .index{
+    display:flex; flex-wrap:wrap; gap:10px; margin-top:6px;
+  }
+  .index a{
+    font-family:var(--font-mono); font-size:12px; color:var(--ink);
+    text-decoration:none; border:1px solid var(--border); border-radius:3px;
+    padding:6px 11px; background:var(--sheet); letter-spacing:.03em;
+  }
+  .index a:hover, .index a:focus-visible{ border-color:var(--ink-dim); }
+  .index a span{ color:var(--ink-faint); margin-right:6px; }
+
+  /* ---------- Sheet shell (engineering drawing frame) ---------- */
+  .sheet{
+    background:var(--sheet); border:1px solid var(--border); border-radius:2px;
+    position:relative; padding:28px 28px 0;
+    box-shadow:0 1px 0 var(--border);
+  }
+  .sheet::before, .sheet::after{
+    content:""; position:absolute; width:14px; height:14px; border:1px solid var(--ink-faint); opacity:.6;
+  }
+  .sheet::before{ top:8px; left:8px; border-right:none; border-bottom:none; }
+  .sheet::after{ bottom:8px; right:8px; border-left:none; border-top:none; }
+
+  .sheet-head{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+  .sheet-head h2{
+    font-family:var(--font-display); font-weight:700; text-transform:uppercase;
+    font-size:26px; letter-spacing:.02em; margin:0;
+  }
+  .sheet-head .sub{ font-family:var(--font-mono); font-size:12px; color:var(--ink-dim); }
+
+  .drawing{ width:100%; overflow-x:auto; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+  .drawing svg{ display:block; width:100%; height:auto; color:var(--ink); }
+  .drawing figcaption{ font-size:12.5px; color:var(--ink-dim); padding:10px 2px 4px; line-height:1.55; }
+
+  /* ---------- Title block (ANSI-style strip) ---------- */
+  .title-block{
+    display:grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1.4fr;
+    border-top:1px solid var(--border); font-family:var(--font-mono); font-size:11.5px;
+    margin:0 -28px;
+  }
+  .title-block > div{ padding:9px 14px; border-right:1px solid var(--border); }
+  .title-block > div:last-child{ border-right:none; }
+  .title-block .lbl{ color:var(--ink-faint); text-transform:uppercase; font-size:9.5px; letter-spacing:.08em; display:block; margin-bottom:3px; }
+  .title-block .val{ color:var(--ink); font-weight:600; }
+
+  /* ---------- Legend ---------- */
+  .legend{ display:flex; flex-wrap:wrap; gap:18px; padding:16px 0 20px; font-family:var(--font-mono); font-size:11.5px; }
+  .legend .item{ display:flex; align-items:center; gap:7px; color:var(--ink-dim); }
+  .legend .swatch{ width:20px; height:3px; border-radius:2px; flex:none; }
+  .legend .swatch.dash{ background:none; border-top:2px dashed var(--ink-faint); height:0; }
+
+  /* ---------- Specs sheet (Sheet 3) ---------- */
+  .spec-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); margin-bottom:22px; }
+  .spec-card{ background:var(--sheet); padding:18px 20px; display:flex; flex-direction:column; gap:10px; }
+  .spec-card h3{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--signal); margin:0; padding-bottom:8px; border-bottom:1px solid var(--border);
+  }
+  .spec-row{ display:flex; justify-content:space-between; gap:12px; font-size:13px; }
+  .spec-row .k{ color:var(--ink-dim); }
+  .spec-row .v{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-weight:600; text-align:right; }
+  .spec-note{ font-size:12px; color:var(--ink-dim); line-height:1.55; margin-top:2px; }
+  .spec-note b{ color:var(--ink); font-weight:600; }
+
+  .callout{
+    display:flex; gap:12px; padding:14px 16px; border:1px solid var(--border); border-left:3px solid var(--warn);
+    background:var(--sheet); font-size:13px; line-height:1.55; margin-bottom:28px;
+  }
+  .callout b{ color:var(--warn); font-family:var(--font-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; display:block; margin-bottom:4px; }
+
+  footer{ font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); text-align:center; padding-top:10px; }
+
+  @media (max-width:640px){
+    .title-block{ grid-template-columns:1fr 1fr; }
+    .title-block > div{ border-bottom:1px solid var(--border); }
+  }
+</style>
+
+<div class="wrap">
+
+  <div class="masthead">
+    <span class="kicker">Documentação de engenharia &mdash; para prototipagem</span>
+    <h1>Esquemático IGNLOCK</h1>
+    <p class="lede">Desenho técnico do Sistema de Bloqueio e Liberação de Partida Veicular Inteligente: diagrama de blocos, esquemático elétrico detalhado e especificações de projeto para a bancada. Referência cruzada: <span style="font-family:var(--font-mono)">docs/01&ndash;03</span> (hardware) e <span style="font-family:var(--font-mono)">firmware/include/config.h</span> (pinagem/UUIDs).</p>
+    <nav class="index">
+      <a href="#sheet1"><span>01</span>Diagrama de blocos</a>
+      <a href="#sheet2"><span>02</span>Esquemático elétrico</a>
+      <a href="#sheet3"><span>03</span>Especificações de projeto</a>
+    </nav>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SHEET 1 — BLOCK DIAGRAM                                       -->
+  <!-- ============================================================ -->
+  <section class="sheet" id="sheet1">
+    <div class="sheet-head">
+      <h2>01 &middot; Diagrama de Blocos do Sistema</h2>
+      <span class="sub">FLUXO DE AUTENTICAÇÃO E CHAVEAMENTO — VISÃO GERAL</span>
+    </div>
+
+    <figure class="drawing">
+      <svg viewBox="0 0 1200 460" role="img" aria-label="Diagrama de blocos: celular com NFC e BLE autentica o ESP32, que consulta o RTC DS3231 e a NVS, aciona o optoacoplador PC817 que isola e comanda o MOSFET IRF4905, chaveando os 12V permanentes da bateria para a bomba de combustível; a lógica é alimentada pela linha 15 via conversor buck.">
+
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <!-- Phone -->
+        <g font-family="IBM Plex Mono, monospace">
+          <rect x="30" y="150" width="150" height="150" rx="10" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <text x="105" y="145" text-anchor="middle" font-size="12" fill="currentColor" font-weight="600">CELULAR (APP FLUTTER)</text>
+          <text x="105" y="205" text-anchor="middle" font-size="12">NFC</text>
+          <text x="105" y="222" text-anchor="middle" font-size="10" fill="var(--ink-dim)">lê tag do painel</text>
+          <line x1="60" y1="235" x2="150" y2="235" stroke="currentColor" stroke-width="1"/>
+          <text x="105" y="260" text-anchor="middle" font-size="12">BLE GATT</text>
+          <text x="105" y="277" text-anchor="middle" font-size="10" fill="var(--ink-dim)">escreve AUTH</text>
+        </g>
+
+        <!-- BLE payload arrow -->
+        <line x1="180" y1="225" x2="290" y2="225" stroke="var(--signal)" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="235" y="212" text-anchor="middle" font-size="10.5" fill="var(--signal)" font-family="IBM Plex Mono, monospace">DRIVER:HORAS:EPOCH</text>
+
+        <!-- ESP32 group -->
+        <rect x="290" y="90" width="230" height="290" rx="10" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="405" y="115" text-anchor="middle" font-size="13" font-weight="700" font-family="IBM Plex Mono, monospace">U2 · ESP32-WROOM-32</text>
+
+        <rect x="312" y="132" width="186" height="42" fill="none" stroke="var(--ink-dim)" stroke-width="1"/>
+        <text x="405" y="149" text-anchor="middle" font-size="10.5" font-family="IBM Plex Mono, monospace">SERVIDOR GATT BLE</text>
+        <text x="405" y="164" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">AUTH · STATUS · CONFIG</text>
+
+        <rect x="312" y="184" width="186" height="42" fill="none" stroke="var(--ink-dim)" stroke-width="1"/>
+        <text x="405" y="201" text-anchor="middle" font-size="10.5" font-family="IBM Plex Mono, monospace">LOCK CONTROLLER</text>
+        <text x="405" y="216" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">regra de tolerância + fail-safe</text>
+
+        <rect x="312" y="236" width="88" height="42" fill="none" stroke="var(--ink-dim)" stroke-width="1"/>
+        <text x="356" y="253" text-anchor="middle" font-size="10" font-family="IBM Plex Mono, monospace">NVS</text>
+        <text x="356" y="266" text-anchor="middle" font-size="9" fill="var(--ink-dim)">Preferences</text>
+
+        <rect x="410" y="236" width="88" height="42" fill="none" stroke="var(--ink-dim)" stroke-width="1"/>
+        <text x="454" y="253" text-anchor="middle" font-size="10" font-family="IBM Plex Mono, monospace">DS3231</text>
+        <text x="454" y="266" text-anchor="middle" font-size="9" fill="var(--ink-dim)">hora absoluta</text>
+
+        <text x="405" y="300" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">GPIO25 → controle da bomba</text>
+        <text x="405" y="315" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">GPIO21/22 → I2C RTC</text>
+        <text x="405" y="330" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">GPIO26/27 → LEDs de status</text>
+
+        <!-- power source into ESP32 -->
+        <line x1="405" y1="60" x2="405" y2="90" stroke="var(--power)" stroke-width="2"/>
+        <rect x="330" y="10" width="150" height="50" fill="none" stroke="var(--power)" stroke-width="1.4"/>
+        <text x="405" y="30" text-anchor="middle" font-size="10.5" fill="var(--power)" font-family="IBM Plex Mono, monospace">LINHA 15 → BUCK 5V</text>
+        <text x="405" y="45" text-anchor="middle" font-size="9.5" fill="var(--power)">pós-chave, sem dreno parado</text>
+
+        <!-- Isolation barrier -->
+        <line x1="536" y1="225" x2="536" y2="225" stroke="none"/>
+        <line x1="520" y1="225" x2="600" y2="225" stroke="var(--signal)" stroke-width="2" marker-end="url(#arrow)"/>
+        <rect x="600" y="150" width="150" height="150" rx="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="6 4"/>
+        <text x="675" y="145" text-anchor="middle" font-size="12" font-weight="600" font-family="IBM Plex Mono, monospace">U1 · PC817</text>
+        <text x="675" y="220" text-anchor="middle" font-size="11">ISOLAMENTO</text>
+        <text x="675" y="238" text-anchor="middle" font-size="11">GALVÂNICO</text>
+        <text x="675" y="266" text-anchor="middle" font-size="10" fill="var(--ink-dim)">5000 Vrms</text>
+        <line x1="675" y1="160" x2="675" y2="290" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".5"/>
+
+        <line x1="750" y1="225" x2="820" y2="225" stroke="var(--power)" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="785" y="212" text-anchor="middle" font-size="10" fill="var(--power)" font-family="IBM Plex Mono, monospace">GATE</text>
+
+        <!-- MOSFET block -->
+        <rect x="820" y="150" width="150" height="150" rx="10" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="895" y="145" text-anchor="middle" font-size="12" font-weight="600" font-family="IBM Plex Mono, monospace">Q1 · IRF4905</text>
+        <text x="895" y="220" text-anchor="middle" font-size="11">HIGH-SIDE</text>
+        <text x="895" y="238" text-anchor="middle" font-size="11">P-CH SWITCH</text>
+        <text x="895" y="266" text-anchor="middle" font-size="10" fill="var(--ink-dim)">até 10&#8202;A contínuos</text>
+
+        <!-- battery -->
+        <line x1="895" y1="90" x2="895" y2="150" stroke="var(--power)" stroke-width="2"/>
+        <rect x="820" y="30" width="150" height="50" fill="none" stroke="var(--power)" stroke-width="1.4"/>
+        <text x="895" y="50" text-anchor="middle" font-size="10.5" fill="var(--power)" font-family="IBM Plex Mono, monospace">BATERIA +12V</text>
+        <text x="895" y="65" text-anchor="middle" font-size="9.5" fill="var(--power)">permanente · fusível F2</text>
+
+        <line x1="970" y1="225" x2="1040" y2="225" stroke="var(--power)" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="1005" y="212" text-anchor="middle" font-size="10" fill="var(--power)" font-family="IBM Plex Mono, monospace">+12V_SW</text>
+
+        <!-- Pump -->
+        <circle cx="1110" cy="225" r="42" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="1110" y="218" text-anchor="middle" font-size="15" font-weight="700" font-family="IBM Plex Mono, monospace">M</text>
+        <text x="1110" y="290" text-anchor="middle" font-size="10.5">BOMBA DE</text>
+        <text x="1110" y="304" text-anchor="middle" font-size="10.5">COMBUSTÍVEL</text>
+
+        <text x="600" y="410" font-size="11" fill="var(--ink-dim)">Fail-safe: qualquer falha (queda de energia, reset, RTC sem hora confiável) força GPIO25&#8202;=&#8202;LOW &#8594; bomba bloqueada. Ver Folha 02 e docs/01, Seção A.1.4.</text>
+      </svg>
+      <figcaption>Fig. 1 — Fluxo de ponta a ponta: o app lê a tag NFC do veículo, autentica via BLE, e o ESP32 decide liberar a bomba com base na regra de tolerância e na hora absoluta do RTC; o comando atravessa a barreira de isolamento galvânico antes de chavear os 12&#8201;V permanentes da bateria.</figcaption>
+    </figure>
+
+    <div class="title-block">
+      <div><span class="lbl">Projeto</span><span class="val">Sistema de Bloqueio de Partida — IGNLOCK</span></div>
+      <div><span class="lbl">Desenho</span><span class="val">IGNLOCK-BLK-01</span></div>
+      <div><span class="lbl">Rev.</span><span class="val">A</span></div>
+      <div><span class="lbl">Data</span><span class="val">2026-08-23</span></div>
+      <div><span class="lbl">Escala</span><span class="val">S/ESCALA</span></div>
+      <div><span class="lbl">Folha</span><span class="val">1 de 3</span></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SHEET 2 — DETAILED ELECTRICAL SCHEMATIC                       -->
+  <!-- ============================================================ -->
+  <section class="sheet" id="sheet2">
+    <div class="sheet-head">
+      <h2>02 &middot; Esquemático Elétrico Detalhado</h2>
+      <span class="sub">CIRCUITO DE CONTROLE + POTÊNCIA — PARA MONTAGEM EM BANCADA</span>
+    </div>
+
+    <div class="legend">
+      <div class="item"><span class="swatch" style="background:var(--power)"></span>Rede de potência (+12V)</div>
+      <div class="item"><span class="swatch" style="background:var(--signal)"></span>Sinal lógico / controle (3.3V)</div>
+      <div class="item"><span class="swatch" style="background:var(--bus)"></span>Barramento I2C (RTC)</div>
+      <div class="item"><span class="swatch" style="background:currentColor"></span>GND comum</div>
+      <div class="item"><span class="swatch dash"></span>Barreira de isolamento galvânica</div>
+    </div>
+
+    <figure class="drawing">
+      <svg viewBox="0 0 1520 1000" role="img" aria-label="Esquemático elétrico completo: da esquerda para a direita, a linha 15 alimenta um conversor buck que energiza o ESP32; o ESP32 aciona via GPIO25 e resistor R1 o LED interno do optoacoplador PC817, cuja barreira de isolamento separa o lado lógico do lado de potência; o fototransistor do PC817 puxa o nó de gate drive para GND, ligando o MOSFET IRF4905 que conecta a bateria permanente, via fusível F2, à bomba de combustível; diodos TVS e flyback protegem contra transientes automotivos; um módulo DS3231 fornece hora absoluta ao ESP32 via I2C.">
+
+        <defs>
+          <marker id="jdot" markerWidth="1" markerHeight="1"></marker>
+        </defs>
+
+        <g font-family="IBM Plex Mono, monospace" font-size="11" stroke-linecap="square">
+
+        <!-- ============ GND BUS (shared) ============ -->
+        <line x1="80" y1="820" x2="1460" y2="820" stroke="currentColor" stroke-width="1.6"/>
+        <text x="90" y="843" font-size="10.5" fill="var(--ink-dim)">GND COMUM — PONTO ÚNICO DE ATERRAMENTO NO CHASSI (ver docs/03, A.3.3)</text>
+        <!-- ground tick left -->
+        <g transform="translate(120,820)">
+          <line x1="0" y1="0" x2="0" y2="14" stroke="currentColor" stroke-width="1.4"/>
+          <line x1="-10" y1="14" x2="10" y2="14" stroke="currentColor" stroke-width="1.4"/>
+          <line x1="-6" y1="19" x2="6" y2="19" stroke="currentColor" stroke-width="1.4"/>
+          <line x1="-2" y1="24" x2="2" y2="24" stroke="currentColor" stroke-width="1.4"/>
+        </g>
+
+        <!-- ============ LOGIC POWER: LINE 15 -> F1 -> PS1 -> ESP32 VIN ============ -->
+        <text x="70" y="40" fill="var(--power)" font-weight="600">+12V LINHA 15 (PÓS-CHAVE)</text>
+        <line x1="140" y1="50" x2="140" y2="86" stroke="var(--power)" stroke-width="2"/>
+        <rect x="110" y="86" width="60" height="20" fill="none" stroke="var(--power)" stroke-width="1.4"/>
+        <line x1="110" y1="96" x2="170" y2="96" stroke="var(--power)" stroke-width="1"/>
+        <text x="180" y="100" fill="var(--power)">F1 1A</text>
+        <line x1="140" y1="106" x2="140" y2="150" stroke="var(--power)" stroke-width="2"/>
+
+        <rect x="70" y="150" width="180" height="66" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="160" y="176" text-anchor="middle" font-weight="700">PS1 · BUCK 12V→5V</text>
+        <text x="160" y="200" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">MP1584 / LM2596</text>
+        <line x1="250" y1="183" x2="300" y2="183" stroke="var(--power)" stroke-width="2"/>
+        <text x="308" y="187" fill="var(--power)">+5V</text>
+        <line x1="90" y1="216" x2="90" y2="820" stroke="currentColor" stroke-width="1"/>
+
+        <!-- ============ ESP32 MODULE ============ -->
+        <rect x="360" y="120" width="220" height="440" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <text x="470" y="108" text-anchor="middle" font-size="14" font-weight="700">U2 · ESP32-WROOM-32</text>
+
+        <!-- VIN pin -->
+        <line x1="300" y1="183" x2="360" y2="183" stroke="var(--power)" stroke-width="2"/>
+        <line x1="360" y1="183" x2="360" y2="150" stroke="var(--power)" stroke-width="2"/>
+        <text x="372" y="145" fill="var(--power)">VIN</text>
+        <circle cx="300" cy="183" r="3.4" fill="var(--power)"/>
+
+        <!-- GND pin (bottom-left) -->
+        <line x1="90" y1="820" x2="90" y2="820" stroke="none"/>
+        <line x1="360" y1="540" x2="330" y2="540" stroke="currentColor" stroke-width="1.4"/>
+        <line x1="330" y1="540" x2="330" y2="820" stroke="currentColor" stroke-width="1.4"/>
+        <text x="372" y="537" text-anchor="end" font-size="10">GND</text>
+
+        <!-- GPIO25 -> R1 -> PC817 pin1 -->
+        <line x1="580" y1="200" x2="640" y2="200" stroke="var(--signal)" stroke-width="1.8"/>
+        <text x="586" y="193" fill="var(--signal)" font-size="10">GPIO25</text>
+        <rect x="640" y="192" width="46" height="16" fill="none" stroke="var(--signal)" stroke-width="1.4"/>
+        <text x="663" y="184" text-anchor="middle" fill="var(--signal)" font-size="10">R1 220Ω</text>
+        <line x1="686" y1="200" x2="740" y2="200" stroke="var(--signal)" stroke-width="1.8"/>
+
+        <!-- GPIO26 -> R4a -> LED red -->
+        <line x1="580" y1="256" x2="640" y2="256" stroke="var(--signal)" stroke-width="1.8"/>
+        <text x="586" y="249" fill="var(--signal)" font-size="10">GPIO26</text>
+        <rect x="640" y="248" width="46" height="16" fill="none" stroke="var(--signal)" stroke-width="1.4"/>
+        <text x="663" y="240" text-anchor="middle" fill="var(--signal)" font-size="10">R4a 330Ω</text>
+        <line x1="686" y1="256" x2="726" y2="256" stroke="var(--signal)" stroke-width="1.8"/>
+        <!-- LED red symbol -->
+        <g transform="translate(726,256)">
+          <polygon points="0,-9 0,9 18,0" fill="none" stroke="var(--signal)" stroke-width="1.4"/>
+          <line x1="18" y1="-9" x2="18" y2="9" stroke="var(--signal)" stroke-width="1.4"/>
+          <line x1="10" y1="-14" x2="16" y2="-22" stroke="var(--signal)" stroke-width="1" marker-end="url(#arrow)"/>
+          <line x1="16" y1="-10" x2="22" y2="-18" stroke="var(--signal)" stroke-width="1" marker-end="url(#arrow)"/>
+          <line x1="18" y1="9" x2="18" y2="60" stroke="var(--signal)" stroke-width="1.8"/>
+          <text x="34" y="4" font-size="10" fill="var(--signal)">LED1 VM</text>
+        </g>
+
+        <!-- GPIO27 -> R4b -> LED green -->
+        <line x1="580" y1="312" x2="640" y2="312" stroke="var(--signal)" stroke-width="1.8"/>
+        <text x="586" y="305" fill="var(--signal)" font-size="10">GPIO27</text>
+        <rect x="640" y="304" width="46" height="16" fill="none" stroke="var(--signal)" stroke-width="1.4"/>
+        <text x="663" y="296" text-anchor="middle" fill="var(--signal)" font-size="10">R4b 330Ω</text>
+        <line x1="686" y1="312" x2="726" y2="312" stroke="var(--signal)" stroke-width="1.8"/>
+        <g transform="translate(726,312)">
+          <polygon points="0,-9 0,9 18,0" fill="none" stroke="var(--signal)" stroke-width="1.4"/>
+          <line x1="18" y1="-9" x2="18" y2="9" stroke="var(--signal)" stroke-width="1.4"/>
+          <line x1="10" y1="-14" x2="16" y2="-22" stroke="var(--signal)" stroke-width="1" marker-end="url(#arrow)"/>
+          <line x1="16" y1="-10" x2="22" y2="-18" stroke="var(--signal)" stroke-width="1" marker-end="url(#arrow)"/>
+          <line x1="18" y1="9" x2="18" y2="4" stroke="var(--signal)" stroke-width="1.8"/>
+          <text x="34" y="4" font-size="10" fill="var(--signal)">LED2 VD</text>
+        </g>
+        <line x1="744" y1="316" x2="744" y2="820" stroke="var(--signal)" stroke-width="1.6"/>
+        <line x1="744" y1="820" x2="744" y2="820" stroke="none"/>
+
+        <!-- GPIO21/22 -> I2C -> DS3231 -->
+        <line x1="580" y1="368" x2="620" y2="368" stroke="var(--bus)" stroke-width="1.8"/>
+        <text x="586" y="361" fill="var(--bus)" font-size="10">GPIO21 SDA</text>
+        <line x1="620" y1="368" x2="620" y2="640" stroke="var(--bus)" stroke-width="1.8"/>
+        <line x1="580" y1="404" x2="600" y2="404" stroke="var(--bus)" stroke-width="1.8"/>
+        <text x="586" y="397" fill="var(--bus)" font-size="10">GPIO22 SCL</text>
+        <line x1="600" y1="404" x2="600" y2="660" stroke="var(--bus)" stroke-width="1.8"/>
+
+        <rect x="440" y="640" width="180" height="110" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="530" y="628" text-anchor="middle" font-size="13" font-weight="700">U3 · DS3231 RTC</text>
+        <line x1="440" y1="660" x2="620" y2="660" stroke="none"/>
+        <text x="452" y="675" font-size="10">SDA</text>
+        <text x="452" y="695" font-size="10">SCL</text>
+        <text x="452" y="715" font-size="10">VCC → 3V3</text>
+        <text x="452" y="735" font-size="10">GND</text>
+        <line x1="620" y1="731" x2="660" y2="731" stroke="currentColor" stroke-width="1.4"/>
+        <line x1="660" y1="731" x2="660" y2="820" stroke="currentColor" stroke-width="1.4"/>
+        <text x="90" y="838" font-size="0" fill="none"></text>
+        <text x="700" y="700" font-size="9.5" fill="var(--ink-dim)" transform="rotate(0)"></text>
+
+        <!-- ESP32 GND down to bus -->
+        <line x1="330" y1="820" x2="90" y2="820" stroke="currentColor" stroke-width="1.4"/>
+
+        <!-- ============ ISOLATION BARRIER (PC817) ============ -->
+        <rect x="740" y="120" width="220" height="360" rx="6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="7 5"/>
+        <text x="850" y="106" text-anchor="middle" font-size="12" font-weight="700">U1 · PC817 — BARREIRA DE ISOLAMENTO 5000&#8201;Vrms</text>
+        <line x1="850" y1="140" x2="850" y2="460" stroke="currentColor" stroke-width="1" stroke-dasharray="2 5" opacity=".55"/>
+
+        <!-- LED side (pins 1,2) -->
+        <g transform="translate(790,200)">
+          <polygon points="0,-9 0,9 18,0" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <line x1="18" y1="-9" x2="18" y2="9" stroke="currentColor" stroke-width="1.4"/>
+          <line x1="10" y1="-14" x2="20" y2="-24" stroke="currentColor" stroke-width="1"/>
+          <line x1="16" y1="-10" x2="26" y2="-20" stroke="currentColor" stroke-width="1"/>
+        </g>
+        <text x="742" y="196" font-size="10">1</text>
+        <line x1="740" y1="200" x2="790" y2="200" stroke="currentColor" stroke-width="1.6"/>
+        <line x1="808" y1="200" x2="808" y2="290" stroke="currentColor" stroke-width="1.6"/>
+        <line x1="808" y1="290" x2="742" y2="290" stroke="currentColor" stroke-width="1.6"/>
+        <text x="746" y="286" font-size="10">2</text>
+        <line x1="742" y1="290" x2="742" y2="820" stroke="currentColor" stroke-width="1.4"/>
+
+        <!-- phototransistor side (pins 4,3) -->
+        <g transform="translate(910,220)">
+          <line x1="0" y1="-30" x2="0" y2="30" stroke="currentColor" stroke-width="1.6"/>
+          <line x1="-20" y1="-16" x2="0" y2="-6" stroke="currentColor" stroke-width="1.4"/>
+          <line x1="-20" y1="16" x2="0" y2="6" stroke="currentColor" stroke-width="1.4" marker-end="url(#arrow)"/>
+          <line x1="-30" y1="-24" x2="-14" y2="-10" stroke="currentColor" stroke-width="1"/>
+          <line x1="-24" y1="-30" x2="-8" y2="-16" stroke="currentColor" stroke-width="1"/>
+        </g>
+        <text x="960" y="196" font-size="10">4</text>
+        <line x1="910" y1="190" x2="958" y2="190" stroke="currentColor" stroke-width="1.6"/>
+        <text x="960" y="264" font-size="10">3</text>
+        <line x1="910" y1="250" x2="936" y2="250" stroke="currentColor" stroke-width="1.6"/>
+        <line x1="936" y1="250" x2="936" y2="440" stroke="currentColor" stroke-width="1.6"/>
+        <line x1="936" y1="440" x2="900" y2="440" stroke="currentColor" stroke-width="1.6"/>
+        <line x1="900" y1="440" x2="900" y2="820" stroke="currentColor" stroke-width="1.4"/>
+
+        <!-- ============ POWER SIDE ============ -->
+        <text x="1300" y="40" text-anchor="middle" fill="var(--power)" font-weight="600">BATERIA +12V (PERMANENTE)</text>
+        <line x1="1300" y1="50" x2="1300" y2="86" stroke="var(--power)" stroke-width="2.2"/>
+        <rect x="1270" y="86" width="60" height="20" fill="none" stroke="var(--power)" stroke-width="1.4"/>
+        <line x1="1270" y1="96" x2="1330" y2="96" stroke="var(--power)" stroke-width="1"/>
+        <text x="1340" y="100" fill="var(--power)">F2 20A</text>
+        <line x1="1300" y1="106" x2="1300" y2="470" stroke="var(--power)" stroke-width="2.2"/>
+        <text x="1308" y="260" fill="var(--power)" font-size="10">+12V_PERM</text>
+
+        <!-- R2 pull-up -->
+        <circle cx="1300" cy="230" r="3.4" fill="var(--power)"/>
+        <line x1="1300" y1="230" x2="1200" y2="230" stroke="var(--power)" stroke-width="1.8"/>
+        <rect x="1150" y="222" width="50" height="16" fill="none" stroke="var(--power)" stroke-width="1.4"/>
+        <text x="1175" y="214" text-anchor="middle" fill="var(--power)" font-size="10">R2 10kΩ</text>
+        <line x1="1150" y1="230" x2="1090" y2="230" stroke="var(--power)" stroke-width="1.8"/>
+
+        <!-- gate drive node -->
+        <line x1="958" y1="190" x2="1090" y2="190" stroke="var(--power)" stroke-width="1.8"/>
+        <line x1="1090" y1="190" x2="1090" y2="230" stroke="var(--power)" stroke-width="1.8"/>
+        <circle cx="1090" cy="230" r="3.6" fill="var(--power)"/>
+        <text x="1000" y="180" fill="var(--power)" font-size="10">GATE_DRIVE</text>
+
+        <!-- R3 series to gate -->
+        <line x1="1090" y1="230" x2="1090" y2="280" stroke="var(--power)" stroke-width="1.8"/>
+        <rect x="1082" y="280" width="16" height="46" fill="none" stroke="var(--power)" stroke-width="1.4"/>
+        <text x="1108" y="308" fill="var(--power)" font-size="10">R3 220Ω</text>
+        <line x1="1090" y1="326" x2="1090" y2="360" stroke="var(--power)" stroke-width="1.8"/>
+
+        <!-- D3 zener between gate node and +12V_PERM tap -->
+        <line x1="1300" y1="230" x2="1300" y2="290" stroke="var(--power)" stroke-width="1.4"/>
+        <g transform="translate(1300,320) rotate(90)">
+          <polygon points="0,-8 0,8 16,0" fill="none" stroke="var(--power)" stroke-width="1.3"/>
+          <line x1="16" y1="-8" x2="16" y2="8" stroke="var(--power)" stroke-width="1.3"/>
+          <line x1="16" y1="-8" x2="20" y2="-8" stroke="var(--power)" stroke-width="1.3"/>
+          <line x1="0" y1="8" x2="-4" y2="8" stroke="var(--power)" stroke-width="1.3"/>
+        </g>
+        <line x1="1300" y1="290" x2="1300" y2="290" stroke="none"/>
+        <line x1="1284" y1="320" x2="1090" y2="320" stroke="var(--power)" stroke-width="1.2" stroke-dasharray="1 0"/>
+        <line x1="1090" y1="320" x2="1090" y2="326" stroke="var(--power)" stroke-width="1.2"/>
+        <text x="1330" y="324" fill="var(--power)" font-size="10">D3 15V</text>
+
+        <!-- Q1 MOSFET -->
+        <text x="1160" y="365" fill="var(--power)" font-size="10">S</text>
+        <line x1="1300" y1="360" x2="1180" y2="360" stroke="var(--power)" stroke-width="2"/>
+        <circle cx="1300" cy="360" r="3.4" fill="var(--power)"/>
+        <line x1="1180" y1="360" x2="1180" y2="560" stroke="var(--power)" stroke-width="3.2"/>
+        <line x1="1130" y1="392" x2="1160" y2="392" stroke="var(--power)" stroke-width="1.8"/>
+        <line x1="1160" y1="378" x2="1160" y2="406" stroke="var(--power)" stroke-width="2.4"/>
+        <text x="1108" y="396" fill="var(--power)" font-size="10">G</text>
+        <line x1="1090" y1="360" x2="1090" y2="392" stroke="var(--power)" stroke-width="1.8"/>
+        <line x1="1090" y1="392" x2="1130" y2="392" stroke="var(--power)" stroke-width="1.8"/>
+        <text x="1195" y="565" fill="var(--power)" font-size="10">D</text>
+        <text x="1230" y="470" font-size="12" font-weight="700" fill="var(--power)">Q1 · IRF4905</text>
+        <text x="1230" y="486" font-size="9.5" fill="var(--ink-dim)">P-CH · TO-220 · dissipador obrigatório</text>
+
+        <!-- Drain to PUMP_OUT node -->
+        <line x1="1180" y1="560" x2="1180" y2="620" stroke="var(--power)" stroke-width="2.2"/>
+        <circle cx="1180" cy="620" r="3.6" fill="var(--power)"/>
+        <text x="1194" y="616" fill="var(--power)" font-size="10">PUMP_OUT (+12V_SW)</text>
+
+        <!-- D1 TVS branch (routed clear of CN1, right of its x1270 edge) -->
+        <line x1="1180" y1="620" x2="1300" y2="620" stroke="var(--power)" stroke-width="1.8"/>
+        <g transform="translate(1300,660) rotate(90)">
+          <polygon points="0,-8 0,8 16,0" fill="none" stroke="var(--power)" stroke-width="1.3"/>
+          <line x1="16" y1="-8" x2="16" y2="8" stroke="var(--power)" stroke-width="1.3"/>
+        </g>
+        <line x1="1300" y1="620" x2="1300" y2="644" stroke="var(--power)" stroke-width="1.8"/>
+        <line x1="1300" y1="676" x2="1300" y2="820" stroke="var(--power)" stroke-width="1.8"/>
+        <text x="1312" y="656" fill="var(--power)" font-size="10">D1 TVS</text>
+        <text x="1312" y="670" fill="var(--power)" font-size="9.5">1.5KE18A</text>
+
+        <!-- to connector CN1 -->
+        <line x1="1180" y1="620" x2="1180" y2="660" stroke="var(--power)" stroke-width="2.2"/>
+        <rect x="1130" y="660" width="140" height="60" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="1200" y="682" text-anchor="middle" font-size="11" font-weight="700">CN1 CONECTOR</text>
+        <text x="1200" y="697" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">automotivo IP67 · 20A/via</text>
+        <line x1="1200" y1="720" x2="1200" y2="820" stroke="currentColor" stroke-width="1.4"/>
+
+        <!-- Pump + flyback (remote, off-enclosure) -->
+        <rect x="1350" y="600" width="150" height="220" fill="none" stroke="var(--ink-faint)" stroke-width="1" stroke-dasharray="5 4"/>
+        <text x="1425" y="592" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">NO CHICOTE DA BOMBA — FORA DO GABINETE</text>
+
+        <line x1="1270" y1="675" x2="1390" y2="675" stroke="var(--power)" stroke-width="1.8"/>
+        <circle cx="1425" cy="710" r="34" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="1425" y="716" text-anchor="middle" font-size="15" font-weight="700">M</text>
+        <line x1="1390" y1="675" x2="1425" y2="675" stroke="var(--power)" stroke-width="1.6"/>
+        <line x1="1425" y1="675" x2="1425" y2="676" stroke="var(--power)" stroke-width="1.6"/>
+
+        <!-- D2 flyback antiparallel across pump -->
+        <line x1="1390" y1="675" x2="1390" y2="790" stroke="currentColor" stroke-width="1.4"/>
+        <g transform="translate(1390,745) rotate(90)">
+          <polygon points="0,-8 8,0 0,8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+          <line x1="0" y1="-8" x2="0" y2="8" stroke="currentColor" stroke-width="1.3"/>
+        </g>
+        <text x="1400" y="748" font-size="10">D2 1N5408</text>
+        <text x="1400" y="762" font-size="9" fill="var(--ink-dim)">flyback, antiparalelo</text>
+        <line x1="1390" y1="790" x2="1425" y2="790" stroke="currentColor" stroke-width="1.4"/>
+        <line x1="1425" y1="790" x2="1425" y2="744" stroke="currentColor" stroke-width="1.4"/>
+        <line x1="1425" y1="790" x2="1425" y2="820" stroke="currentColor" stroke-width="1.6"/>
+
+        <!-- CN1 GND to bus -->
+        <line x1="1180" y1="720" x2="1180" y2="820" stroke="currentColor" stroke-width="0" opacity="0"/>
+
+        </g>
+      </svg>
+      <figcaption>Fig. 2 — Esquemático completo pino a pino. Rede de potência (vermelho) chaveada em alto lado pelo Q1; rede lógica (verde) isolada do lado de potência pelo PC817 (U1); barramento I2C (roxo) para o RTC DS3231. D2 deve ser montado fisicamente próximo à bomba/relé, fora do gabinete eletrônico — ver <span style="font-family:var(--font-mono)">docs/03</span>, Seção A.3.2.</figcaption>
+    </figure>
+
+    <div class="title-block">
+      <div><span class="lbl">Projeto</span><span class="val">Sistema de Bloqueio de Partida — IGNLOCK</span></div>
+      <div><span class="lbl">Desenho</span><span class="val">IGNLOCK-SCH-02</span></div>
+      <div><span class="lbl">Rev.</span><span class="val">A</span></div>
+      <div><span class="lbl">Data</span><span class="val">2026-08-23</span></div>
+      <div><span class="lbl">Escala</span><span class="val">S/ESCALA</span></div>
+      <div><span class="lbl">Folha</span><span class="val">2 de 3</span></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- SHEET 3 — DESIGN SPECS FOR PROTOTYPING                        -->
+  <!-- ============================================================ -->
+  <section class="sheet" id="sheet3">
+    <div class="sheet-head">
+      <h2>03 &middot; Especificações de Projeto</h2>
+      <span class="sub">PARÂMETROS PARA MONTAGEM E VALIDAÇÃO EM BANCADA</span>
+    </div>
+
+    <div class="callout">
+      <div>
+        <b>Antes de energizar</b>
+        Confirme com multímetro a polaridade de PS1 e o valor de saída (5.0&#8201;V&#8201;±2%) <em>antes</em> de conectar o ESP32. Confirme que Q1 está isolado do dissipador se este tocar o gabinete (ver docs/03, A.3.1).
+      </div>
+    </div>
+
+    <div class="spec-grid">
+      <div class="spec-card">
+        <h3>Redes elétricas</h3>
+        <div class="spec-row"><span class="k">+12V_PERM (bateria)</span><span class="v">10.5–14.8&#8201;V</span></div>
+        <div class="spec-row"><span class="k">+12V_SW (linha 15)</span><span class="v">0 / 10.5–14.8&#8201;V</span></div>
+        <div class="spec-row"><span class="k">+5V lógico (PS1 out)</span><span class="v">5.0&#8201;V ±2%</span></div>
+        <div class="spec-row"><span class="k">Lógica GPIO (ESP32)</span><span class="v">3.3&#8201;V</span></div>
+        <div class="spec-row"><span class="k">Vgs no chaveamento (Q1)</span><span class="v">≈ −11.5&#8201;V</span></div>
+      </div>
+
+      <div class="spec-card">
+        <h3>Correntes &amp; fusíveis</h3>
+        <div class="spec-row"><span class="k">F1 (lógica)</span><span class="v">1&#8201;A</span></div>
+        <div class="spec-row"><span class="k">F2 (potência)</span><span class="v">15–20&#8201;A*</span></div>
+        <div class="spec-row"><span class="k">Consumo ESP32 (BLE ativo)</span><span class="v">80–135&#8201;mA</span></div>
+        <div class="spec-row"><span class="k">Corrente LED do PC817 (R1)</span><span class="v">≈ 9.5&#8201;mA</span></div>
+        <div class="spec-row"><span class="k">Rds(on) Q1 @ 100°C</span><span class="v">0.028&#8201;Ω</span></div>
+        <div class="spec-note">*Medir corrente real da bomba com alicate amperímetro antes de fixar F2 — ver docs/02, A.2.1.</div>
+      </div>
+
+      <div class="spec-card">
+        <h3>Térmico (Q1, 10&#8201;A cont.)</h3>
+        <div class="spec-row"><span class="k">Potência dissipada</span><span class="v">≈ 2.8&#8201;W</span></div>
+        <div class="spec-row"><span class="k">RθJC + RθCS</span><span class="v">2.0&#8201;°C/W</span></div>
+        <div class="spec-row"><span class="k">RθSA do dissipador (máx.)</span><span class="v">≤ 17.6&#8201;°C/W</span></div>
+        <div class="spec-row"><span class="k">Tj alvo (ambiente 70°C)</span><span class="v">≤ 125&#8201;°C</span></div>
+        <div class="spec-note">Dissipador padrão TO-220 (~15&#8201;°C/W) atende até 10&#8201;A. Ver memória de cálculo completa em docs/03, A.3.1.</div>
+      </div>
+
+      <div class="spec-card">
+        <h3>Proteções</h3>
+        <div class="spec-row"><span class="k">D1 TVS</span><span class="v">1.5KE18A, 1500&#8201;W</span></div>
+        <div class="spec-row"><span class="k">D2 flyback</span><span class="v">1N5408, 3&#8201;A/1000&#8201;V</span></div>
+        <div class="spec-row"><span class="k">D3 zener (gate)</span><span class="v">1N5245B, 15&#8201;V</span></div>
+        <div class="spec-row"><span class="k">Isolamento U1</span><span class="v">5000&#8201;Vrms</span></div>
+        <div class="spec-note">Padrão de referência: transientes ISO 7637-2 (pulsos 1, 2a/2b, 3, load dump). Ver docs/03, A.3.2.</div>
+      </div>
+
+      <div class="spec-card">
+        <h3>Fiação (bitolas mínimas)</h3>
+        <div class="spec-row"><span class="k">Potência ≤10&#8201;A</span><span class="v">AWG14 / 2.0&#8201;mm²</span></div>
+        <div class="spec-row"><span class="k">Potência 15–25&#8201;A</span><span class="v">AWG12 / 3.0&#8201;mm²</span></div>
+        <div class="spec-row"><span class="k">Sinal / lógica</span><span class="v">AWG18 / 0.75&#8201;mm²</span></div>
+        <div class="spec-row"><span class="k">Terra (GND)</span><span class="v">= bitola da potência</span></div>
+        <div class="spec-note">Tabela completa por faixa de corrente em docs/02, A.2.1.</div>
+      </div>
+
+      <div class="spec-card">
+        <h3>Sequência de bring-up</h3>
+        <div class="spec-row"><span class="k">1</span><span class="v" style="font-weight:400">Alimentar só PS1, medir 5V</span></div>
+        <div class="spec-row"><span class="k">2</span><span class="v" style="font-weight:400">Ligar ESP32, ler log serial</span></div>
+        <div class="spec-row"><span class="k">3</span><span class="v" style="font-weight:400">Potência com carga de teste (lâmpada 12V/5W)</span></div>
+        <div class="spec-row"><span class="k">4</span><span class="v" style="font-weight:400">Auth via BLE (nRF Connect)</span></div>
+        <div class="spec-row"><span class="k">5</span><span class="v" style="font-weight:400">Confirmar fail-safe ao cortar F1</span></div>
+        <div class="spec-note">Detalhado em docs/04, Seção D.1.4.</div>
+      </div>
+    </div>
+
+    <div class="title-block">
+      <div><span class="lbl">Projeto</span><span class="val">Sistema de Bloqueio de Partida — IGNLOCK</span></div>
+      <div><span class="lbl">Desenho</span><span class="val">IGNLOCK-SPEC-03</span></div>
+      <div><span class="lbl">Rev.</span><span class="val">A</span></div>
+      <div><span class="lbl">Data</span><span class="val">2026-08-23</span></div>
+      <div><span class="lbl">Escala</span><span class="val">S/ESCALA</span></div>
+      <div><span class="lbl">Folha</span><span class="val">3 de 3</span></div>
+    </div>
+  </section>
+
+  <footer>IGNLOCK &middot; Documentação de engenharia para prototipagem &middot; ver README.md e docs/01&ndash;04 para o restante do pacote técnico</footer>
+
+</div>

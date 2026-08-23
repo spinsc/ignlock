@@ -1,0 +1,40 @@
+name: ignition_lock_app
+description: App de liberação de partida veicular via NFC + BLE, 100% offline-first.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # BLE — scan, conexão, escrita/leitura/notify de características GATT
+  flutter_blue_plus: ^1.32.12
+
+  # Leitura de tags NFC (NDEF) fixadas no painel do veículo
+  nfc_manager: ^3.5.0
+
+  # Persistência local offline-first dos logs de viagem (fila de sincronização)
+  sqflite: ^2.3.3
+  path: ^1.9.0
+
+  # Backend de nuvem (sincronização em lote + gestão de veículos/condutores)
+  supabase_flutter: ^2.6.0
+  connectivity_plus: ^6.0.5
+
+  # Utilidades
+  permission_handler: ^11.3.1
+  intl: ^0.19.0
+  provider: ^6.1.2
+  uuid: ^4.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
