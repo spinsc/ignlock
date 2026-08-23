@@ -86,8 +86,10 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Login inicial: `spinelli.sc@gmail.com` / senha `123456` (troca obrigatória
-no primeiro acesso). Detalhes em [web-dashboard/README.md](web-dashboard/README.md).
+Também no ar em produção: https://spinsc.github.io/ignlock/ (deploy
+automático via GitHub Actions a cada push). Login com a conta admin já
+configurada — detalhes de perfis de acesso, CSV e gravação de tags NFC pelo
+painel em [web-dashboard/README.md](web-dashboard/README.md).
 
 ### Permissões obrigatórias (adicionar antes de compilar para produção)
 
@@ -124,4 +126,5 @@ No `Info.plist` também é preciso declarar o formato NDEF em `com.apple.develop
 - O PIN administrativo padrão (`000000`, ver `config.h`) **deve ser alterado** na característica CONFIG antes do sistema entrar em operação — está em texto plano no protocolo atual; para uma frota real, evoluir para autenticação por token assinado (ex. HMAC com chave por veículo) em vez de PIN fixo.
 - Habilitar **bonding/pairing BLE** (não implementado no exemplo mínimo) para impedir que qualquer app genérico de BLE escreva na característica AUTH — hoje qualquer dispositivo dentro do alcance pode tentar autenticar se souber o formato do payload.
 - O `DRIVER_ID` enviado pelo app não é validado contra uma lista de condutores autorizados no firmware (o ESP32 aceita qualquer string) — essa validação foi implementada no backend (FK `trip_logs.driver_code → drivers.driver_code`), não no firmware. Ou seja: o firmware ainda libera a bomba para qualquer DRIVER_ID digitado no app; o que passa a existir é rastreabilidade — o log só sincroniza com a nuvem se o condutor estiver cadastrado no painel.
-- A conta de admin do painel web foi criada com senha inicial `123456` e `must_change_password` obrigatório — troque assim que possível e, para novos admins, sempre crie com essa mesma flag (ver [web-dashboard/README.md](web-dashboard/README.md#login)).
+- Existem dois perfis de acesso no painel (`profiles.role`: `admin`/`operator`) — só admins veem e gerenciam a aba Usuários. Novas contas são criadas pela Edge Function `admin-create-user` (nunca expõe a chave `service_role` no navegador) e nascem com senha temporária + troca obrigatória no primeiro login (ver [web-dashboard/README.md](web-dashboard/README.md#login-e-perfis-de-acesso)).
+- A gravação de tags NFC pelo painel (aba Veículos → "Gravar NFC") só funciona no Chrome para Android (Web NFC); em outros navegadores mostra o texto para gravação manual.

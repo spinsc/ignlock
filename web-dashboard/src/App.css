@@ -201,6 +201,62 @@
   white-space: nowrap;
 }
 
+.head-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.head-actions .ghost {
+  padding: 8px 13px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--sheet);
+}
+
+/* ---------- Modal (gravação de tag NFC) ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 50;
+}
+
+.modal {
+  background: var(--sheet);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+}
+
+.modal h3 {
+  font-size: 17px;
+  margin: 0 0 14px;
+}
+
+.modal p {
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0 0 10px;
+}
+
+.payload-box {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 10px 12px;
+  word-break: break-all;
+}
+
 .filter-input {
   padding: 8px 12px;
   border: 1px solid var(--border);

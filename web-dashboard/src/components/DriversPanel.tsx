@@ -1,11 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { supabase, type Driver } from '../lib/supabaseClient';
+import { csvToObjects, downloadCsv, objectsToCsv } from '../lib/csv';
+
+const CSV_COLUMNS = ['driver_code', 'full_name'];
 
 export function DriversPanel() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [importSummary, setImportSummary] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     setLoading(true);
@@ -44,6 +49,42 @@ export function DriversPanel() {
     load();
   }
 
+  function handleExport() {
+    const rows = drivers.map((d) => ({ driver_code: d.driver_code, full_name: d.full_name }));
+    downloadCsv('condutores.csv', objectsToCsv(rows, CSV_COLUMNS));
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const rows = csvToObjects(text);
+
+    let ok = 0;
+    const errors: string[] = [];
+    for (const row of rows) {
+      const driver_code = (row.driver_code ?? '').trim();
+      const full_name = (row.full_name ?? '').trim();
+      if (!driver_code || !full_name) {
+        errors.push(`Linha ignorada (driver_code/full_name vazio): ${JSON.stringify(row)}`);
+        continue;
+      }
+      const { error } = await supabase
+        .from('drivers')
+        .upsert({ driver_code, full_name }, { onConflict: 'driver_code' });
+      if (error) errors.push(`${driver_code}: ${error.message}`);
+      else ok++;
+    }
+
+    setImportSummary(
+      `Importação concluída: ${ok} condutor(es) gravado(s)${errors.length ? `, ${errors.length} erro(s)` : ''}.` +
+        (errors.length ? ' Detalhes no console.' : '')
+    );
+    if (errors.length) console.warn('[DriversPanel] Erros de importação:', errors);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    load();
+  }
+
   return (
     <section className="panel">
       <div className="panel-head">
@@ -51,8 +92,15 @@ export function DriversPanel() {
           <h2>Condutores</h2>
           <p className="panel-sub">Somente condutores cadastrados aqui têm seus logs de viagem aceitos (trip_logs.driver_code é FK).</p>
         </div>
-        <button onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancelar' : '+ Novo condutor'}</button>
+        <div className="head-actions">
+          <button className="ghost" onClick={handleExport}>Exportar CSV</button>
+          <button className="ghost" onClick={() => fileInputRef.current?.click()}>Importar CSV</button>
+          <input ref={fileInputRef} type="file" accept=".csv" hidden onChange={handleImportFile} />
+          <button onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancelar' : '+ Novo condutor'}</button>
+        </div>
       </div>
+
+      {importSummary && <p className="muted" style={{ padding: 0, textAlign: 'left' }}>{importSummary}</p>}
 
       {showForm && (
         <form className="inline-form" onSubmit={handleAdd}>

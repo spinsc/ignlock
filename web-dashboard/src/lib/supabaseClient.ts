@@ -29,6 +29,16 @@ export type Driver = {
   created_at: string;
 };
 
+export type Role = 'admin' | 'operator';
+
+export type Profile = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: Role;
+  created_at: string;
+};
+
 export type TripLog = {
   id: string;
   vehicle_id: string;
