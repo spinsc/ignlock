@@ -1,8 +1,15 @@
 # Sistema de Bloqueio e Liberação de Partida Veicular Inteligente
 
-Sistema embarcado (ESP32) + aplicativo mobile (Flutter) para liberação
-temporizada e 100% offline da bomba de combustível de veículos de frota,
-via autenticação NFC + Bluetooth Low Energy (BLE).
+Sistema embarcado (ESP32) + aplicativo mobile (Flutter) + backend
+(Supabase) + painel web (React) para liberação temporizada e offline-first
+da bomba de combustível de veículos de frota, via autenticação NFC +
+Bluetooth Low Energy (BLE).
+
+**Status:** backend em produção (projeto Supabase `ignlock`), painel web
+funcional e testado localmente, app Flutter com código pronto (falta
+instalar o Flutter SDK na máquina de desenvolvimento — ver
+[docs/06-flutter-setup.md](docs/06-flutter-setup.md)). Firmware do ESP32
+está pronto mas a gravação/teste em placa física ficou para depois.
 
 ## Estrutura do repositório
 
@@ -12,7 +19,9 @@ vehicle-ignition-lock-system/
 │   ├── 01-hardware-schematic.md     # Seção A.1 — esquemático, netlist, pinagem
 │   ├── 02-bom.md                    # Seção A.2 — Bill of Materials
 │   ├── 03-protecao-automotiva.md    # Seção A.3 — térmico, ISO 7637-2, isolamento
-│   └── 04-manual.md                 # Seção D — montagem, NFC, instalação, uso, troubleshooting
+│   ├── 04-manual.md                 # Seção D — montagem, NFC, instalação, uso, troubleshooting
+│   ├── 05-technical-drawing.html    # Desenho técnico (também publicado como Artifact)
+│   └── 06-flutter-setup.md          # Como instalar o Flutter SDK e rodar o app
 ├── firmware/                        # Seção B — ESP32 (Arduino core / PlatformIO)
 │   ├── platformio.ini
 │   ├── include/config.h             # pinagem, UUIDs BLE, constantes de negócio
@@ -22,14 +31,31 @@ vehicle-ignition-lock-system/
 │       ├── rtc_clock.{h,cpp}        # driver DS3231 (hora absoluta offline)
 │       ├── lock_controller.{h,cpp}  # regra de tolerância + fail-safe
 │       └── ble_service.{h,cpp}      # servidor GATT (NimBLE)
-└── mobile_app/                      # Seção C — Flutter
-    ├── pubspec.yaml
-    └── lib/
-        ├── main.dart
-        ├── models/{trip_log,vehicle_tag}.dart
-        ├── services/{nfc_service,ble_service,local_db_service,sync_service}.dart
-        └── screens/auth_flow_screen.dart
+├── mobile_app/                      # Seção C — Flutter (app do motorista)
+│   ├── pubspec.yaml
+│   └── lib/
+│       ├── main.dart
+│       ├── config/supabase_config.dart   # credenciais do backend (chave pública)
+│       ├── models/{trip_log,vehicle_tag}.dart
+│       ├── services/{nfc_service,ble_service,local_db_service,sync_service}.dart
+│       └── screens/auth_flow_screen.dart
+└── web-dashboard/                   # Painel web da frota (React + Vite + Supabase)
+    ├── .env.example
+    └── src/
+        ├── lib/supabaseClient.ts
+        ├── hooks/useAuth.ts
+        ├── pages/{LoginPage,ChangePasswordPage,DashboardPage}.tsx
+        └── components/{VehiclesPanel,DriversPanel,TripLogsPanel}.tsx
 ```
+
+## Backend (Supabase)
+
+Projeto `ignlock` na organização ACN SINAL VERDE (região `sa-east-1`).
+Schema com três tabelas (`vehicles`, `drivers`, `trip_logs`) e RLS ativado:
+o app do motorista só pode **inserir** em `trip_logs` (nunca ler), e o
+painel web (usuário autenticado) tem leitura/escrita de gestão. Detalhes
+completos e a implicação prática disso no código em
+[web-dashboard/README.md](web-dashboard/README.md#arquitetura-de-dados-e-segurança).
 
 ## Como compilar o firmware
 
@@ -42,11 +68,26 @@ pio device monitor    # log serial (115200 baud)
 
 ## Como rodar o app
 
+Requer o Flutter SDK instalado — ver passo a passo em
+[docs/06-flutter-setup.md](docs/06-flutter-setup.md).
+
 ```bash
 cd mobile_app
 flutter pub get
 flutter run
 ```
+
+## Como rodar o painel web
+
+```bash
+cd web-dashboard
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Login inicial: `spinelli.sc@gmail.com` / senha `123456` (troca obrigatória
+no primeiro acesso). Detalhes em [web-dashboard/README.md](web-dashboard/README.md).
 
 ### Permissões obrigatórias (adicionar antes de compilar para produção)
 
@@ -82,4 +123,5 @@ No `Info.plist` também é preciso declarar o formato NDEF em `com.apple.develop
 
 - O PIN administrativo padrão (`000000`, ver `config.h`) **deve ser alterado** na característica CONFIG antes do sistema entrar em operação — está em texto plano no protocolo atual; para uma frota real, evoluir para autenticação por token assinado (ex. HMAC com chave por veículo) em vez de PIN fixo.
 - Habilitar **bonding/pairing BLE** (não implementado no exemplo mínimo) para impedir que qualquer app genérico de BLE escreva na característica AUTH — hoje qualquer dispositivo dentro do alcance pode tentar autenticar se souber o formato do payload.
-- O `DRIVER_ID` enviado pelo app não é validado contra uma lista de condutores autorizados no firmware (o ESP32 aceita qualquer string) — a validação de "este condutor pode dirigir este veículo" deve ocorrer no app/backend antes de permitir o preenchimento do formulário.
+- O `DRIVER_ID` enviado pelo app não é validado contra uma lista de condutores autorizados no firmware (o ESP32 aceita qualquer string) — essa validação foi implementada no backend (FK `trip_logs.driver_code → drivers.driver_code`), não no firmware. Ou seja: o firmware ainda libera a bomba para qualquer DRIVER_ID digitado no app; o que passa a existir é rastreabilidade — o log só sincroniza com a nuvem se o condutor estiver cadastrado no painel.
+- A conta de admin do painel web foi criada com senha inicial `123456` e `must_change_password` obrigatório — troque assim que possível e, para novos admins, sempre crie com essa mesma flag (ver [web-dashboard/README.md](web-dashboard/README.md#login)).
