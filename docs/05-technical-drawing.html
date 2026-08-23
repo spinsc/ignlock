@@ -272,7 +272,7 @@
       <div><span class="lbl">Projeto</span><span class="val">Sistema de Bloqueio de Partida — IGNLOCK</span></div>
       <div><span class="lbl">Desenho</span><span class="val">IGNLOCK-BLK-01</span></div>
       <div><span class="lbl">Rev.</span><span class="val">A</span></div>
-      <div><span class="lbl">Data</span><span class="val">2026-08-23</span></div>
+      <div><span class="lbl">Data</span><span class="val">23-08-2026</span></div>
       <div><span class="lbl">Escala</span><span class="val">S/ESCALA</span></div>
       <div><span class="lbl">Folha</span><span class="val">1 de 3</span></div>
     </div>
@@ -292,7 +292,7 @@
       <div class="item"><span class="swatch" style="background:var(--signal)"></span>Sinal lógico / controle (3.3V)</div>
       <div class="item"><span class="swatch" style="background:var(--bus)"></span>Barramento I2C (RTC)</div>
       <div class="item"><span class="swatch" style="background:currentColor"></span>GND comum</div>
-      <div class="item"><span class="swatch dash"></span>Barreira de isolamento galvânica</div>
+      <div class="item"><span class="swatch dash"></span>Barreira de isolamento galvânico</div>
     </div>
 
     <figure class="drawing">
@@ -306,7 +306,7 @@
 
         <!-- ============ GND BUS (shared) ============ -->
         <line x1="80" y1="820" x2="1460" y2="820" stroke="currentColor" stroke-width="1.6"/>
-        <text x="90" y="843" font-size="10.5" fill="var(--ink-dim)">GND COMUM — PONTO ÚNICO DE ATERRAMENTO NO CHASSI (ver docs/03, A.3.3)</text>
+        <text x="150" y="843" font-size="10.5" fill="var(--ink-dim)">GND COMUM — PONTO ÚNICO DE ATERRAMENTO NO CHASSI (ver docs/03, A.3.3)</text>
         <!-- ground tick left -->
         <g transform="translate(120,820)">
           <line x1="0" y1="0" x2="0" y2="14" stroke="currentColor" stroke-width="1.4"/>
@@ -496,13 +496,13 @@
         <line x1="1090" y1="360" x2="1090" y2="392" stroke="var(--power)" stroke-width="1.8"/>
         <line x1="1090" y1="392" x2="1130" y2="392" stroke="var(--power)" stroke-width="1.8"/>
         <text x="1195" y="565" fill="var(--power)" font-size="10">D</text>
-        <text x="1230" y="470" font-size="12" font-weight="700" fill="var(--power)">Q1 · IRF4905</text>
+        <text x="1280" y="470" font-size="12" font-weight="700" fill="var(--power)">Q1 · IRF4905</text>
         <text x="1230" y="486" font-size="9.5" fill="var(--ink-dim)">P-CH · TO-220 · dissipador obrigatório</text>
 
-        <!-- Drain to PUMP_OUT node -->
+        <!-- Drain to PUMP(BOMBA)_OUT node -->
         <line x1="1180" y1="560" x2="1180" y2="620" stroke="var(--power)" stroke-width="2.2"/>
         <circle cx="1180" cy="620" r="3.6" fill="var(--power)"/>
-        <text x="1194" y="616" fill="var(--power)" font-size="10">PUMP_OUT (+12V_SW)</text>
+        <text x="1194" y="616" fill="var(--power)" font-size="10">PUMP(BOMBA)_OUT (+12V_SW)</text>
 
         <!-- D1 TVS branch (routed clear of CN1, right of its x1270 edge) -->
         <line x1="1180" y1="620" x2="1300" y2="620" stroke="var(--power)" stroke-width="1.8"/>
@@ -524,7 +524,7 @@
 
         <!-- Pump + flyback (remote, off-enclosure) -->
         <rect x="1350" y="600" width="150" height="220" fill="none" stroke="var(--ink-faint)" stroke-width="1" stroke-dasharray="5 4"/>
-        <text x="1425" y="592" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">NO CHICOTE DA BOMBA — FORA DO GABINETE</text>
+        <text x="1390" y="592" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">NO CHICOTE DA BOMBA — FORA DO GABINETE</text>
 
         <line x1="1270" y1="675" x2="1390" y2="675" stroke="var(--power)" stroke-width="1.8"/>
         <circle cx="1425" cy="710" r="34" fill="none" stroke="currentColor" stroke-width="1.6"/>
@@ -538,8 +538,8 @@
           <polygon points="0,-8 8,0 0,8" fill="none" stroke="currentColor" stroke-width="1.3"/>
           <line x1="0" y1="-8" x2="0" y2="8" stroke="currentColor" stroke-width="1.3"/>
         </g>
-        <text x="1400" y="748" font-size="10">D2 1N5408</text>
-        <text x="1400" y="762" font-size="9" fill="var(--ink-dim)">flyback, antiparalelo</text>
+        <text x="1400" y="755" font-size="10">D2 1N5408</text>
+        <text x="1350" y="770" font-size="9" fill="var(--ink-dim)">flyback, antiparalelo</text>
         <line x1="1390" y1="790" x2="1425" y2="790" stroke="currentColor" stroke-width="1.4"/>
         <line x1="1425" y1="790" x2="1425" y2="744" stroke="currentColor" stroke-width="1.4"/>
         <line x1="1425" y1="790" x2="1425" y2="820" stroke="currentColor" stroke-width="1.6"/>
@@ -549,14 +549,14 @@
 
         </g>
       </svg>
-      <figcaption>Fig. 2 — Esquemático completo pino a pino. Rede de potência (vermelho) chaveada em alto lado pelo Q1; rede lógica (verde) isolada do lado de potência pelo PC817 (U1); barramento I2C (roxo) para o RTC DS3231. D2 deve ser montado fisicamente próximo à bomba/relé, fora do gabinete eletrônico — ver <span style="font-family:var(--font-mono)">docs/03</span>, Seção A.3.2.</figcaption>
+      <figcaption>Fig. 2 — Esquemático completo pino a pino. Rede de potência (vermelho) chaveada em nível alto lado pelo Q1; rede lógica (verde) isolada do lado de potência pelo PC817 (U1); barramento I2C (roxo) para o RTC DS3231. D2 deve ser montado fisicamente próximo à bomba/relé, fora do gabinete eletrônico — ver <span style="font-family:var(--font-mono)">docs/03</span>, Seção A.3.2.</figcaption>
     </figure>
 
     <div class="title-block">
       <div><span class="lbl">Projeto</span><span class="val">Sistema de Bloqueio de Partida — IGNLOCK</span></div>
       <div><span class="lbl">Desenho</span><span class="val">IGNLOCK-SCH-02</span></div>
       <div><span class="lbl">Rev.</span><span class="val">A</span></div>
-      <div><span class="lbl">Data</span><span class="val">2026-08-23</span></div>
+      <div><span class="lbl">Data</span><span class="val">23-08-2026</span></div>
       <div><span class="lbl">Escala</span><span class="val">S/ESCALA</span></div>
       <div><span class="lbl">Folha</span><span class="val">2 de 3</span></div>
     </div>
@@ -574,7 +574,7 @@
     <div class="callout">
       <div>
         <b>Antes de energizar</b>
-        Confirme com multímetro a polaridade de PS1 e o valor de saída (5.0&#8201;V&#8201;±2%) <em>antes</em> de conectar o ESP32. Confirme que Q1 está isolado do dissipador se este tocar o gabinete (ver docs/03, A.3.1).
+        Confirme com multímetro a polaridade de PS1 e o valor de saída (5.0&#8201;V&#8201;±2%) <em>antes</em> de conectar o ESP32. Confirme que Q1 está isolado do dissipador se este tocar o gabinete gera curto circuito (ver docs/03, A.3.1).
       </div>
     </div>
 
@@ -640,12 +640,12 @@
       <div><span class="lbl">Projeto</span><span class="val">Sistema de Bloqueio de Partida — IGNLOCK</span></div>
       <div><span class="lbl">Desenho</span><span class="val">IGNLOCK-SPEC-03</span></div>
       <div><span class="lbl">Rev.</span><span class="val">A</span></div>
-      <div><span class="lbl">Data</span><span class="val">2026-08-23</span></div>
+      <div><span class="lbl">Data</span><span class="val">23-08-2026</span></div>
       <div><span class="lbl">Escala</span><span class="val">S/ESCALA</span></div>
       <div><span class="lbl">Folha</span><span class="val">3 de 3</span></div>
     </div>
   </section>
 
-  <footer>IGNLOCK &middot; Documentação de engenharia para prototipagem &middot; ver README.md e docs/01&ndash;04 para o restante do pacote técnico</footer>
+  <footer>IGNLOCK &middot; Documentação de engenharia para prototipagem &middot; ver README.md e docs/01&ndash;04 para o restante do pacote técnico - Powered By Luciano Spinelli (Life Work Brasil)= +5548988092792 - spinelli@lifeworkbrasil.com.br</footer>
 
 </div>
