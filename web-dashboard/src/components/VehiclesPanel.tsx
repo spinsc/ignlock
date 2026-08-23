@@ -13,6 +13,7 @@ export function VehiclesPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Vehicle | null>(null);
   const [importSummary, setImportSummary] = useState<string | null>(null);
   const [nfc, setNfc] = useState<NfcState | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -32,22 +33,34 @@ export function VehiclesPanel() {
     load();
   }, []);
 
+  function readForm(form: HTMLFormElement) {
+    const data = new FormData(form);
+    const macRaw = String(data.get('ble_mac') || '').trim().toUpperCase();
+    return {
+      vehicle_id: String(data.get('vehicle_id')).trim(),
+      ble_mac: macRaw || null,
+      plate: String(data.get('plate') || '').trim() || null,
+      model: String(data.get('model') || '').trim() || null,
+    };
+  }
+
   async function handleAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const payload = {
-      vehicle_id: String(form.get('vehicle_id')).trim(),
-      ble_mac: String(form.get('ble_mac')).trim().toUpperCase(),
-      plate: String(form.get('plate') || '').trim() || null,
-      model: String(form.get('model') || '').trim() || null,
-    };
-    const { error } = await supabase.from('vehicles').insert(payload);
-    if (error) {
-      setError(error.message);
-      return;
-    }
+    setError(null);
+    const { error } = await supabase.from('vehicles').insert(readForm(e.currentTarget));
+    if (error) { setError(error.message); return; }
     (e.target as HTMLFormElement).reset();
     setShowForm(false);
+    load();
+  }
+
+  async function handleSaveEdit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editing) return;
+    setError(null);
+    const { error } = await supabase.from('vehicles').update(readForm(e.currentTarget)).eq('id', editing.id);
+    if (error) { setError(error.message); return; }
+    setEditing(null);
     load();
   }
 
@@ -59,7 +72,7 @@ export function VehiclesPanel() {
   function handleExport() {
     const rows = vehicles.map((v) => ({
       vehicle_id: v.vehicle_id,
-      ble_mac: v.ble_mac,
+      ble_mac: v.ble_mac ?? '',
       plate: v.plate ?? '',
       model: v.model ?? '',
     }));
@@ -76,15 +89,19 @@ export function VehiclesPanel() {
     const errors: string[] = [];
     for (const row of rows) {
       const vehicle_id = (row.vehicle_id ?? '').trim();
-      const ble_mac = (row.ble_mac ?? '').trim().toUpperCase();
-      if (!vehicle_id || !MAC_PATTERN.test(ble_mac)) {
-        errors.push(`Linha ignorada (vehicle_id/ble_mac inválido): ${JSON.stringify(row)}`);
+      const macRaw = (row.ble_mac ?? '').trim().toUpperCase();
+      if (!vehicle_id) {
+        errors.push(`Linha ignorada (vehicle_id vazio): ${JSON.stringify(row)}`);
+        continue;
+      }
+      if (macRaw && !MAC_PATTERN.test(macRaw)) {
+        errors.push(`Linha ignorada (ble_mac em formato inválido): ${JSON.stringify(row)}`);
         continue;
       }
       const { error } = await supabase.from('vehicles').upsert(
         {
           vehicle_id,
-          ble_mac,
+          ble_mac: macRaw || null,
           plate: row.plate?.trim() || null,
           model: row.model?.trim() || null,
         },
@@ -104,6 +121,7 @@ export function VehiclesPanel() {
   }
 
   async function handleWriteTag(v: Vehicle) {
+    if (!v.ble_mac) return; // botão fica desabilitado nesse caso, mas por garantia
     if (!isWebNfcSupported()) {
       setNfc({ vehicle: v, status: 'unsupported' });
       return;
@@ -122,13 +140,16 @@ export function VehiclesPanel() {
       <div className="panel-head">
         <div>
           <h2>Veículos</h2>
-          <p className="panel-sub">Cadastro usado para gravar as tags NFC do painel (ver docs/04, Seção D.2).</p>
+          <p className="panel-sub">
+            Cadastro usado para gravar as tags NFC do painel (ver docs/04, Seção D.2). O MAC BLE é opcional até o
+            ESP32 do veículo ser instalado — sem ele, dá para cadastrar o veículo mas não gravar a tag ainda.
+          </p>
         </div>
         <div className="head-actions">
           <button className="ghost" onClick={handleExport}>Exportar CSV</button>
           <button className="ghost" onClick={() => fileInputRef.current?.click()}>Importar CSV</button>
           <input ref={fileInputRef} type="file" accept=".csv" hidden onChange={handleImportFile} />
-          <button onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancelar' : '+ Novo veículo'}</button>
+          <button onClick={() => { setEditing(null); setShowForm((s) => !s); }}>{showForm ? 'Cancelar' : '+ Novo veículo'}</button>
         </div>
       </div>
 
@@ -137,11 +158,23 @@ export function VehiclesPanel() {
       {showForm && (
         <form className="inline-form" onSubmit={handleAdd}>
           <input name="vehicle_id" placeholder="VEHICLE_ID (ex. TRUCK-042)" required />
-          <input name="ble_mac" placeholder="MAC BLE (AA:BB:CC:DD:EE:FF)" required
+          <input name="ble_mac" placeholder="MAC BLE (opcional — AA:BB:CC:DD:EE:FF)"
             pattern="^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$" title="Formato: AA:BB:CC:DD:EE:FF" />
           <input name="plate" placeholder="Placa (opcional)" />
           <input name="model" placeholder="Modelo (opcional)" />
           <button type="submit">Salvar</button>
+        </form>
+      )}
+
+      {editing && (
+        <form className="inline-form" onSubmit={handleSaveEdit}>
+          <input name="vehicle_id" defaultValue={editing.vehicle_id} placeholder="VEHICLE_ID" required />
+          <input name="ble_mac" defaultValue={editing.ble_mac ?? ''} placeholder="MAC BLE (opcional — AA:BB:CC:DD:EE:FF)"
+            pattern="^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$" title="Formato: AA:BB:CC:DD:EE:FF" />
+          <input name="plate" defaultValue={editing.plate ?? ''} placeholder="Placa (opcional)" />
+          <input name="model" defaultValue={editing.model ?? ''} placeholder="Modelo (opcional)" />
+          <button type="submit">Salvar edição</button>
+          <button type="button" className="ghost" onClick={() => setEditing(null)}>Cancelar</button>
         </form>
       )}
 
@@ -157,6 +190,7 @@ export function VehiclesPanel() {
               <th>Placa</th>
               <th>Modelo</th>
               <th>Status</th>
+              <th></th>
               <th>Tag NFC</th>
             </tr>
           </thead>
@@ -164,7 +198,9 @@ export function VehiclesPanel() {
             {vehicles.map((v) => (
               <tr key={v.id}>
                 <td className="mono">{v.vehicle_id}</td>
-                <td className="mono">{v.ble_mac}</td>
+                <td className="mono">
+                  {v.ble_mac ?? <span className="muted" style={{ padding: 0 }}>não definido</span>}
+                </td>
                 <td>{v.plate ?? '—'}</td>
                 <td>{v.model ?? '—'}</td>
                 <td>
@@ -173,13 +209,18 @@ export function VehiclesPanel() {
                   </button>
                 </td>
                 <td>
-                  <button className="ghost" onClick={() => handleWriteTag(v)}>Gravar NFC</button>
+                  <button className="ghost" onClick={() => { setShowForm(false); setEditing(v); }}>Editar</button>
+                </td>
+                <td>
+                  <button className="ghost" disabled={!v.ble_mac} title={!v.ble_mac ? 'Defina o MAC BLE primeiro (Editar)' : ''} onClick={() => handleWriteTag(v)}>
+                    Gravar NFC
+                  </button>
                 </td>
               </tr>
             ))}
             {vehicles.length === 0 && (
               <tr>
-                <td colSpan={6} className="muted">Nenhum veículo cadastrado ainda.</td>
+                <td colSpan={7} className="muted">Nenhum veículo cadastrado ainda.</td>
               </tr>
             )}
           </tbody>
@@ -192,7 +233,7 @@ export function VehiclesPanel() {
 }
 
 function NfcWriteDialog({ state, onClose, onRetry }: { state: NfcState; onClose: () => void; onRetry: () => void }) {
-  const payload = vehicleTagPayload(state.vehicle.vehicle_id, state.vehicle.ble_mac);
+  const payload = state.vehicle.ble_mac ? vehicleTagPayload(state.vehicle.vehicle_id, state.vehicle.ble_mac) : '';
 
   return (
     <div className="modal-backdrop" onClick={onClose}>

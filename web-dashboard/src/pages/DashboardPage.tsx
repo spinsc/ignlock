@@ -6,8 +6,9 @@ import { VehiclesPanel } from '../components/VehiclesPanel';
 import { DriversPanel } from '../components/DriversPanel';
 import { TripLogsPanel } from '../components/TripLogsPanel';
 import { UsersPanel } from '../components/UsersPanel';
+import { AccessPanel } from '../components/AccessPanel';
 
-type Tab = 'vehicles' | 'drivers' | 'logs' | 'users';
+type Tab = 'vehicles' | 'drivers' | 'access' | 'logs' | 'users';
 
 export function DashboardPage({ session }: { session: Session }) {
   const [tab, setTab] = useState<Tab>('logs');
@@ -21,6 +22,7 @@ export function DashboardPage({ session }: { session: Session }) {
           <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}>Logs de Viagem</button>
           <button className={tab === 'vehicles' ? 'active' : ''} onClick={() => setTab('vehicles')}>Veículos</button>
           <button className={tab === 'drivers' ? 'active' : ''} onClick={() => setTab('drivers')}>Condutores</button>
+          <button className={tab === 'access' ? 'active' : ''} onClick={() => setTab('access')}>Autorizações</button>
           {isAdmin && (
             <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Usuários</button>
           )}
@@ -35,6 +37,7 @@ export function DashboardPage({ session }: { session: Session }) {
         {tab === 'logs' && <TripLogsPanel />}
         {tab === 'vehicles' && <VehiclesPanel />}
         {tab === 'drivers' && <DriversPanel />}
+        {tab === 'access' && <AccessPanel />}
         {tab === 'users' && <UsersPanel isAdmin={isAdmin} />}
       </main>
     </div>

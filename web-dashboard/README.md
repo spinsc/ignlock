@@ -66,12 +66,38 @@ implementa Web NFC até hoje) — abra o painel no celular do administrador
 para gravar. Em qualquer outro navegador (desktop, iOS, Firefox), o botão
 mostra o texto exato para gravar manualmente com um app como **NFC Tools**.
 
+O campo **MAC BLE** é o endereço Bluetooth do ESP32 *do veículo* (não tem
+relação com o celular do motorista — qualquer celular com o app pode operar
+qualquer veículo, não existe amarração por aparelho). Ele é opcional no
+cadastro: dá para criar o veículo antes do ESP32 estar instalado e usar
+"Editar" para preencher o MAC depois, lendo-o do log serial do firmware na
+instalação (ver `docs/01-hardware-schematic.md`, Seção A.1, onde o MAC
+aparece no boot). Sem MAC preenchido, o botão "Gravar NFC" fica desabilitado.
+
+## Autorizações (motorista ↔ veículos)
+
+A aba **Autorizações** relaciona cada condutor aos veículos que ele pode
+operar (tabela `driver_vehicle_access`, N:N), com um seletor de condutor e
+uma lista de veículos com checkbox, mais dois atalhos:
+
+- **Autorizar para todos os veículos** — libera o condutor selecionado para
+  toda a frota cadastrada, em lote.
+- **Remover todas** — revoga todas as autorizações desse condutor de uma vez.
+
+**Importante:** hoje isso é só um cadastro de gestão/relatório. O ESP32 (e o
+app do motorista) ainda não consultam esta tabela para decidir se libera a
+partida — ou seja, na prática, qualquer condutor cadastrado ainda consegue
+operar qualquer veículo, autorizado ou não, até o firmware ganhar essa
+validação (fora do escopo atual, combinado para quando o firmware voltar à
+mesa).
+
 ## Arquitetura de dados e segurança
 
-O schema (`vehicles`, `drivers`, `trip_logs`, `profiles`) e as políticas de
-RLS estão documentados nas migrações `initial_ignlock_schema` e
-`add_profiles_and_roles` do projeto Supabase. Resumo do modelo de
-permissões:
+O schema (`vehicles`, `drivers`, `trip_logs`, `profiles`,
+`driver_vehicle_access`) e as políticas de RLS estão documentados nas
+migrações `initial_ignlock_schema`, `add_profiles_and_roles`,
+`make_ble_mac_optional` e `add_driver_vehicle_access` do projeto Supabase.
+Resumo do modelo de permissões:
 
 | Tabela | App do motorista (chave anônima) | Painel web (autenticado) |
 |---|---|---|
@@ -79,6 +105,7 @@ permissões:
 | `drivers` | sem acesso | leitura + escrita total |
 | `trip_logs` | **somente INSERT** (nunca lê) | leitura (somente leitura) |
 | `profiles` | sem acesso | leitura (todos); escrita só para `role=admin` |
+| `driver_vehicle_access` | sem acesso | leitura + escrita total |
 
 **Importante:** por causa dessa política, qualquer código que insira em
 `trip_logs` usando a chave anônima **não pode** encadear `.select()` — pedir

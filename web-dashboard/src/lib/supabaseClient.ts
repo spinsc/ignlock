@@ -14,7 +14,7 @@ export const supabase = createClient(url, anonKey);
 export type Vehicle = {
   id: string;
   vehicle_id: string;
-  ble_mac: string;
+  ble_mac: string | null;
   plate: string | null;
   model: string | null;
   active: boolean;
@@ -36,6 +36,12 @@ export type Profile = {
   email: string;
   full_name: string | null;
   role: Role;
+  created_at: string;
+};
+
+export type DriverVehicleAccess = {
+  driver_code: string;
+  vehicle_id: string;
   created_at: string;
 };
 
