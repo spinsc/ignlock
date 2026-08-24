@@ -121,6 +121,7 @@ export function VehiclesPanel() {
   }
 
   async function handleWriteTag(v: Vehicle) {
+    if (nfc?.status === 'writing') return; // evita duas gravações disputando a mesma tag
     if (!v.ble_mac) {
       setNfc({ vehicle: v, status: 'no-mac' });
       return;
