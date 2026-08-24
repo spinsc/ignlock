@@ -6,7 +6,7 @@ import { isWebNfcSupported, vehicleTagPayload, writeVehicleTag } from '../lib/nf
 const CSV_COLUMNS = ['vehicle_id', 'ble_mac', 'plate', 'model'];
 const MAC_PATTERN = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
-type NfcState = { vehicle: Vehicle; status: 'idle' | 'writing' | 'success' | 'error' | 'unsupported'; message?: string };
+type NfcState = { vehicle: Vehicle; status: 'idle' | 'writing' | 'success' | 'error' | 'unsupported' | 'no-mac'; message?: string };
 
 export function VehiclesPanel() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -121,7 +121,10 @@ export function VehiclesPanel() {
   }
 
   async function handleWriteTag(v: Vehicle) {
-    if (!v.ble_mac) return; // botão fica desabilitado nesse caso, mas por garantia
+    if (!v.ble_mac) {
+      setNfc({ vehicle: v, status: 'no-mac' });
+      return;
+    }
     if (!isWebNfcSupported()) {
       setNfc({ vehicle: v, status: 'unsupported' });
       return;
@@ -212,9 +215,7 @@ export function VehiclesPanel() {
                   <button className="ghost" onClick={() => { setShowForm(false); setEditing(v); }}>Editar</button>
                 </td>
                 <td>
-                  <button className="ghost" disabled={!v.ble_mac} title={!v.ble_mac ? 'Defina o MAC BLE primeiro (Editar)' : ''} onClick={() => handleWriteTag(v)}>
-                    Gravar NFC
-                  </button>
+                  <button className="ghost" onClick={() => handleWriteTag(v)}>Gravar NFC</button>
                 </td>
               </tr>
             ))}
@@ -239,6 +240,13 @@ function NfcWriteDialog({ state, onClose, onRetry }: { state: NfcState; onClose:
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>Gravar tag NFC — {state.vehicle.vehicle_id}</h3>
+
+        {state.status === 'no-mac' && (
+          <p className="form-error">
+            Este veículo ainda não tem MAC BLE cadastrado. Clique em "Editar" na linha dele, preencha o MAC do
+            ESP32 (lido no log serial do firmware) e tente gravar a tag de novo.
+          </p>
+        )}
 
         {state.status === 'writing' && <p>Aproxime o celular da tag NFC no painel do veículo…</p>}
 
