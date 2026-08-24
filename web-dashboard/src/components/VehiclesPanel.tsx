@@ -169,18 +169,6 @@ export function VehiclesPanel() {
         </form>
       )}
 
-      {editing && (
-        <form className="inline-form" onSubmit={handleSaveEdit}>
-          <input name="vehicle_id" defaultValue={editing.vehicle_id} placeholder="VEHICLE_ID" required />
-          <input name="ble_mac" defaultValue={editing.ble_mac ?? ''} placeholder="MAC BLE (opcional — AA:BB:CC:DD:EE:FF)"
-            pattern="^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$" title="Formato: AA:BB:CC:DD:EE:FF" />
-          <input name="plate" defaultValue={editing.plate ?? ''} placeholder="Placa (opcional)" />
-          <input name="model" defaultValue={editing.model ?? ''} placeholder="Modelo (opcional)" />
-          <button type="submit">Salvar edição</button>
-          <button type="button" className="ghost" onClick={() => setEditing(null)}>Cancelar</button>
-        </form>
-      )}
-
       {error && <p className="form-error">{error}</p>}
       {loading ? (
         <p className="muted">Carregando…</p>
@@ -229,7 +217,40 @@ export function VehiclesPanel() {
       )}
 
       {nfc && <NfcWriteDialog state={nfc} onClose={() => setNfc(null)} onRetry={() => handleWriteTag(nfc.vehicle)} />}
+      {editing && <EditVehicleDialog vehicle={editing} onSave={handleSaveEdit} onClose={() => setEditing(null)} error={error} />}
     </section>
+  );
+}
+
+function EditVehicleDialog({
+  vehicle,
+  onSave,
+  onClose,
+  error,
+}: {
+  vehicle: Vehicle;
+  onSave: (e: FormEvent<HTMLFormElement>) => void;
+  onClose: () => void;
+  error: string | null;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Editar veículo — {vehicle.vehicle_id}</h3>
+        <form onSubmit={onSave} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input name="vehicle_id" defaultValue={vehicle.vehicle_id} placeholder="VEHICLE_ID" required />
+          <input name="ble_mac" defaultValue={vehicle.ble_mac ?? ''} placeholder="MAC BLE (opcional — AA:BB:CC:DD:EE:FF)"
+            pattern="^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$" title="Formato: AA:BB:CC:DD:EE:FF" />
+          <input name="plate" defaultValue={vehicle.plate ?? ''} placeholder="Placa (opcional)" />
+          <input name="model" defaultValue={vehicle.model ?? ''} placeholder="Modelo (opcional)" />
+          {error && <p className="form-error">{error}</p>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="submit">Salvar edição</button>
+            <button type="button" className="ghost" onClick={onClose}>Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
