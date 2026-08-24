@@ -12,13 +12,19 @@ export function TripLogsPanel() {
   const [vehicleFilter, setVehicleFilter] = useState('');
 
   useEffect(() => {
-    let query = supabase.from('trip_logs').select('*').order('released_at', { ascending: false }).limit(200);
+    // Embeds via FK: drivers(full_name) e vehicles(plate, model) — assim a
+    // tabela mostra nome do motorista e dados do carro, não só os códigos.
+    let query = supabase
+      .from('trip_logs')
+      .select('*, drivers(full_name), vehicles(plate, model)')
+      .order('released_at', { ascending: false })
+      .limit(200);
     if (vehicleFilter.trim()) query = query.ilike('vehicle_id', `%${vehicleFilter.trim()}%`);
 
     setLoading(true);
     query.then(({ data, error }) => {
       if (error) setError(error.message);
-      else setLogs(data ?? []);
+      else setLogs((data ?? []) as unknown as TripLog[]);
       setLoading(false);
     });
   }, [vehicleFilter]);
@@ -48,7 +54,7 @@ export function TripLogsPanel() {
           <thead>
             <tr>
               <th>Veículo</th>
-              <th>Condutor</th>
+              <th>Motorista</th>
               <th>KM</th>
               <th>Destino</th>
               <th>Liberado em</th>
@@ -59,10 +65,17 @@ export function TripLogsPanel() {
           <tbody>
             {logs.map((log) => {
               const expired = new Date(log.expires_at).getTime() < now;
+              const vehicleExtra = [log.vehicles?.plate, log.vehicles?.model].filter(Boolean).join(' · ');
               return (
                 <tr key={log.id}>
-                  <td className="mono">{log.vehicle_id}</td>
-                  <td className="mono">{log.driver_code}</td>
+                  <td>
+                    <span className="mono">{log.vehicle_id}</span>
+                    {vehicleExtra && <div className="muted" style={{ padding: '2px 0 0', fontSize: 11 }}>{vehicleExtra}</div>}
+                  </td>
+                  <td>
+                    <span>{log.drivers?.full_name ?? '—'}</span>
+                    <div className="muted mono" style={{ padding: '2px 0 0', fontSize: 11 }}>{log.driver_code}</div>
+                  </td>
                   <td className="num">{log.odometer_km.toLocaleString('pt-BR')}</td>
                   <td>{log.destination}</td>
                   <td>{formatDate(log.released_at)}</td>

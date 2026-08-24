@@ -55,4 +55,7 @@ export type TripLog = {
   released_at: string;
   expires_at: string;
   synced_at: string;
+  // Preenchidos via embed do PostgREST (join pela FK) — ver TripLogsPanel.
+  drivers: { full_name: string } | null;
+  vehicles: { plate: string | null; model: string | null } | null;
 };
