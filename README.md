@@ -5,11 +5,14 @@ Sistema embarcado (ESP32) + aplicativo mobile (Flutter) + backend
 da bomba de combustível de veículos de frota, via autenticação NFC +
 Bluetooth Low Energy (BLE).
 
-**Status:** backend em produção (projeto Supabase `ignlock`), painel web
-funcional e testado localmente, app Flutter com código pronto (falta
-instalar o Flutter SDK na máquina de desenvolvimento — ver
-[docs/06-flutter-setup.md](docs/06-flutter-setup.md)). Firmware do ESP32
-está pronto mas a gravação/teste em placa física ficou para depois.
+**Status:** backend em produção (projeto Supabase `ignlock`), painel web em
+produção (https://spinsc.github.io/ignlock/), app Flutter testado em
+aparelho Android real (leitura de NFC e tentativa de conexão BLE
+confirmadas — falta só o ESP32 físico para fechar o ciclo) com
+[release Android publicado](https://github.com/spinsc/ignlock/releases/tag/v1.0.0-app)
+para instalação direta (iOS ainda não tem build — exige Mac com Xcode).
+Firmware do ESP32 está pronto mas a gravação/teste em placa física ficou
+para depois.
 
 ## Estrutura do repositório
 
@@ -21,7 +24,8 @@ vehicle-ignition-lock-system/
 │   ├── 03-protecao-automotiva.md    # Seção A.3 — térmico, ISO 7637-2, isolamento
 │   ├── 04-manual.md                 # Seção D — montagem, NFC, instalação, uso, troubleshooting
 │   ├── 05-technical-drawing.html    # Desenho técnico (também publicado como Artifact)
-│   └── 06-flutter-setup.md          # Como instalar o Flutter SDK e rodar o app
+│   ├── 06-flutter-setup.md          # Como instalar o Flutter SDK e rodar o app
+│   └── 07-lista-compras-placa.md    # Seção A.2.2 — lista de compra da placa (PCB), consolidada por valor
 ├── firmware/                        # Seção B — ESP32 (Arduino core / PlatformIO)
 │   ├── platformio.ini
 │   ├── include/config.h             # pinagem, UUIDs BLE, constantes de negócio
