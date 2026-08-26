@@ -11,8 +11,10 @@ aparelho Android real (leitura de NFC e tentativa de conexão BLE
 confirmadas — falta só o ESP32 físico para fechar o ciclo) com
 [release Android publicado](https://github.com/spinsc/ignlock/releases/tag/v1.0.0-app)
 para instalação direta (iOS ainda não tem build — exige Mac com Xcode).
-Firmware do ESP32 está pronto mas a gravação/teste em placa física ficou
-para depois.
+Firmware do ESP32 de bloqueio está pronto mas a gravação/teste em placa
+física ficou para depois. Módulo de rastreamento (GPS + celular) tem
+backend e painel (mapa ao vivo) em produção e testados; firmware
+(`firmware_tracker/`) escrito mas também sem teste em placa física ainda.
 
 ## Estrutura do repositório
 
@@ -25,8 +27,9 @@ vehicle-ignition-lock-system/
 │   ├── 04-manual.md                 # Seção D — montagem, NFC, instalação, uso, troubleshooting
 │   ├── 05-technical-drawing.html    # Desenho técnico (também publicado como Artifact)
 │   ├── 06-flutter-setup.md          # Como instalar o Flutter SDK e rodar o app
-│   └── 07-lista-compras-placa.md    # Seção A.2.2 — lista de compra da placa (PCB), consolidada por valor
-├── firmware/                        # Seção B — ESP32 (Arduino core / PlatformIO)
+│   ├── 07-lista-compras-placa.md    # Seção A.2.2 — lista de compra da placa (PCB), consolidada por valor
+│   └── 08-modulo-rastreamento.md    # Seção A.4 — GPS + celular, arquitetura e orçamento de energia
+├── firmware/                        # Seção B — ESP32 de bloqueio (Arduino core / PlatformIO)
 │   ├── platformio.ini
 │   ├── include/config.h             # pinagem, UUIDs BLE, constantes de negócio
 │   └── src/
@@ -35,6 +38,13 @@ vehicle-ignition-lock-system/
 │       ├── rtc_clock.{h,cpp}        # driver DS3231 (hora absoluta offline)
 │       ├── lock_controller.{h,cpp}  # regra de tolerância + fail-safe
 │       └── ble_service.{h,cpp}      # servidor GATT (NimBLE)
+├── firmware_tracker/                # Seção A.4 — ESP32 de rastreamento (módulo separado, ver docs/08)
+│   ├── platformio.ini
+│   ├── include/config.h
+│   └── src/
+│       ├── main.cpp
+│       ├── cellular_client.{h,cpp}  # AT commands: LTE, GNSS, HTTP POST (SIM7600G-H)
+│       └── power_monitor.{h,cpp}    # sense de ignição + corte de baixa tensão
 ├── mobile_app/                      # Seção C — Flutter (app do motorista)
 │   ├── pubspec.yaml
 │   └── lib/
@@ -49,7 +59,7 @@ vehicle-ignition-lock-system/
         ├── lib/supabaseClient.ts
         ├── hooks/useAuth.ts
         ├── pages/{LoginPage,ChangePasswordPage,DashboardPage}.tsx
-        └── components/{VehiclesPanel,DriversPanel,TripLogsPanel}.tsx
+        └── components/{VehiclesPanel,DriversPanel,TripLogsPanel,TrackingPanel,AccessPanel,UsersPanel}.tsx
 ```
 
 ## Backend (Supabase)
