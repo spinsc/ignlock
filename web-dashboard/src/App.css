@@ -265,6 +265,12 @@
   font-size: 13px;
 }
 
+.map-wrap {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
 .payload-box {
   display: block;
   font-family: var(--font-mono);

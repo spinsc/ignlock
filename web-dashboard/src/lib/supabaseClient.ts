@@ -45,6 +45,18 @@ export type DriverVehicleAccess = {
   created_at: string;
 };
 
+export type VehiclePosition = {
+  id: number;
+  vehicle_id: string;
+  latitude: number;
+  longitude: number;
+  speed_kmh: number | null;
+  heading_deg: number | null;
+  recorded_at: string;
+  received_at: string;
+  vehicles: { plate: string | null; model: string | null } | null;
+};
+
 export type TripLog = {
   id: string;
   vehicle_id: string;

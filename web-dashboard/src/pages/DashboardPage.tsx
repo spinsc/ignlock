@@ -7,8 +7,9 @@ import { DriversPanel } from '../components/DriversPanel';
 import { TripLogsPanel } from '../components/TripLogsPanel';
 import { UsersPanel } from '../components/UsersPanel';
 import { AccessPanel } from '../components/AccessPanel';
+import { TrackingPanel } from '../components/TrackingPanel';
 
-type Tab = 'vehicles' | 'drivers' | 'access' | 'logs' | 'users';
+type Tab = 'vehicles' | 'drivers' | 'access' | 'logs' | 'tracking' | 'users';
 
 export function DashboardPage({ session }: { session: Session }) {
   const [tab, setTab] = useState<Tab>('logs');
@@ -20,6 +21,7 @@ export function DashboardPage({ session }: { session: Session }) {
         <span className="brand">IGNLOCK · PAINEL DA FROTA</span>
         <nav className="tabs">
           <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}>Logs de Viagem</button>
+          <button className={tab === 'tracking' ? 'active' : ''} onClick={() => setTab('tracking')}>Rastreamento</button>
           <button className={tab === 'vehicles' ? 'active' : ''} onClick={() => setTab('vehicles')}>Veículos</button>
           <button className={tab === 'drivers' ? 'active' : ''} onClick={() => setTab('drivers')}>Condutores</button>
           <button className={tab === 'access' ? 'active' : ''} onClick={() => setTab('access')}>Autorizações</button>
@@ -35,6 +37,7 @@ export function DashboardPage({ session }: { session: Session }) {
 
       <main className="app-main">
         {tab === 'logs' && <TripLogsPanel />}
+        {tab === 'tracking' && <TrackingPanel />}
         {tab === 'vehicles' && <VehiclesPanel />}
         {tab === 'drivers' && <DriversPanel />}
         {tab === 'access' && <AccessPanel />}
