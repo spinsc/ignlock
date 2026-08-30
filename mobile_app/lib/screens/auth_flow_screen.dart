@@ -7,6 +7,7 @@ import '../services/ble_service.dart';
 import '../services/local_db_service.dart';
 import '../services/nfc_service.dart';
 import '../services/sync_service.dart';
+import 'admin_config_screen.dart';
 
 enum _FlowStep { idle, scanningNfc, connectingBle, form, sending, done, error }
 
@@ -154,10 +155,32 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
     });
   }
 
+  Future<void> _openAdminConfig() async {
+    if (_vehicleTag == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AdminConfigScreen(bleService: _bleService, vehicleId: _vehicleTag!.vehicleId),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Liberação de Partida')),
+      appBar: AppBar(
+        title: const Text('Liberação de Partida'),
+        actions: [
+          // Só disponível com o veículo já conectado via BLE — a
+          // configuração é protegida pelo PIN administrativo do próprio
+          // ESP32 (ver AdminConfigScreen), não pelo login do app.
+          if (_step == _FlowStep.form)
+            IconButton(
+              icon: const Icon(Icons.settings),
+              tooltip: 'Configuração administrativa',
+              onPressed: _openAdminConfig,
+            ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: _buildBody(),

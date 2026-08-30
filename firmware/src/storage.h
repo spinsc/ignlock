@@ -30,4 +30,9 @@ public:
     uint32_t loadEmergencyPendingEpoch(); // 0 = nenhum
     void saveEmergencyPendingEpoch(uint32_t epoch);
     void clearEmergencyPending();
+
+    // Duração configurável do botão de emergência (ver docs/12) — separada
+    // da tolerância normal, com teto próprio (EMERGENCY_MAX_HOURS).
+    uint16_t loadEmergencyToleranceHours();
+    void saveEmergencyToleranceHours(uint16_t hours);
 };

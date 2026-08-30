@@ -37,7 +37,7 @@ static const gpio_num_t PIN_EMERGENCY_BTN = GPIO_NUM_32;
 #define SVC_UUID_IGNITION_LOCK   "8f6a0001-b5a3-4393-e0a9-e50e24dc0001"
 #define CHR_UUID_AUTH            "8f6a0001-b5a3-4393-e0a9-e50e24dc0002" // Write: DRIVER_ID:VALID_HOURS:EPOCH
 #define CHR_UUID_STATUS          "8f6a0001-b5a3-4393-e0a9-e50e24dc0003" // Read/Notify: status atual
-#define CHR_UUID_CONFIG          "8f6a0001-b5a3-4393-e0a9-e50e24dc0004" // Write (admin): CONFIG:HOURS:PIN
+#define CHR_UUID_CONFIG          "8f6a0001-b5a3-4393-e0a9-e50e24dc0004" // Write (admin): CONFIG:HOURS:EMERGENCY_HOURS:PIN
 #define CHR_UUID_EMERGENCY       "8f6a0001-b5a3-4393-e0a9-e50e24dc0005" // Read/Notify: "EMG:<epoch|0>" · Write "ACK" confirma sync
 
 // ---- Regras de negócio ----
@@ -49,8 +49,13 @@ static const gpio_num_t PIN_EMERGENCY_BTN = GPIO_NUM_32;
 // Botão de emergência: janela de liberação deliberadamente curta (é uma
 // saída de emergência, não um turno normal de uso) e pressão longa
 // obrigatória (reduz risco de acionamento acidental/casual, já que este
-// caminho ignora toda a autenticação normal por definição).
-#define EMERGENCY_TOLERANCE_HOURS 1
+// caminho ignora toda a autenticação normal por definição). A duração é
+// configurável (característica CONFIG, autenticada por PIN — ver
+// LockController::handleConfigPayload) dentro de um teto propositalmente
+// baixo, para que "configurável" não vire "tolerância normal disfarçada".
+#define EMERGENCY_TOLERANCE_HOURS 1  // valor de fábrica, usado até o admin configurar outro
+#define EMERGENCY_MIN_HOURS       1
+#define EMERGENCY_MAX_HOURS       6
 #define EMERGENCY_HOLD_MS         3000
 
 // ---- Persistência NVS (Preferences) ----
@@ -61,6 +66,7 @@ static const gpio_num_t PIN_EMERGENCY_BTN = GPIO_NUM_32;
 #define NVS_KEY_TOLERANCE_HOURS   "tol_hours"
 #define NVS_KEY_ADMIN_PIN         "admin_pin"
 #define NVS_KEY_EMERGENCY_EPOCH   "emg_epoch" // 0 = nenhum evento pendente de sincronização
+#define NVS_KEY_EMERGENCY_TOL_HOURS "emg_tol_h" // duração configurável do botão de emergência
 
 // ---- BLE advertising ----
 #define BLE_DEVICE_NAME_PREFIX    "IGNLOCK-" // + últimos 4 bytes do MAC, ver ble_service.cpp

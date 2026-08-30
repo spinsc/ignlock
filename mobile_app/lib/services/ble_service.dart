@@ -110,10 +110,16 @@ class BleService {
     await _authChar!.write(utf8.encode(payload), withoutResponse: false);
   }
 
-  /// Envia configuração administrativa de tolerância (requer PIN).
-  Future<void> sendConfig({required int hours, required String adminPin}) async {
+  /// Envia configuração administrativa (requer PIN): tolerância normal e
+  /// tolerância do botão de emergência (ver docs/12), em uma única
+  /// gravação. Formato esperado pelo firmware: CONFIG:HOURS:EMERGENCY_HOURS:PIN
+  Future<void> sendConfig({
+    required int hours,
+    required int emergencyHours,
+    required String adminPin,
+  }) async {
     if (_configChar == null) throw Exception('Não conectado ao dispositivo.');
-    final payload = 'CONFIG:$hours:$adminPin';
+    final payload = 'CONFIG:$hours:$emergencyHours:$adminPin';
     await _configChar!.write(utf8.encode(payload), withoutResponse: false);
   }
 

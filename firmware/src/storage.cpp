@@ -82,3 +82,16 @@ void Storage::clearEmergencyPending() {
     prefs.putUInt(NVS_KEY_EMERGENCY_EPOCH, 0);
     prefs.end();
 }
+
+uint16_t Storage::loadEmergencyToleranceHours() {
+    prefs.begin(NVS_NAMESPACE, true);
+    uint16_t h = prefs.getUShort(NVS_KEY_EMERGENCY_TOL_HOURS, EMERGENCY_TOLERANCE_HOURS);
+    prefs.end();
+    return h;
+}
+
+void Storage::saveEmergencyToleranceHours(uint16_t hours) {
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putUShort(NVS_KEY_EMERGENCY_TOL_HOURS, hours);
+    prefs.end();
+}

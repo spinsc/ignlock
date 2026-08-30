@@ -91,16 +91,22 @@ bool LockController::handleAuthPayload(const String &payload) {
 }
 
 bool LockController::handleConfigPayload(const String &payload, Storage *storage) {
-    // Formato: CONFIG:HOURS:ADMIN_PIN
+    // Formato: CONFIG:HOURS:EMERGENCY_HOURS:PIN
+    // (EMERGENCY_HOURS configura a duração do botão de emergência opcional
+    // -- ver docs/12 -- dentro de um teto próprio, mais baixo que o da
+    // tolerância normal, para que "configurável" não vire tolerância normal
+    // disfarçada.)
     int sep1 = payload.indexOf(':');
     int sep2 = payload.indexOf(':', sep1 + 1);
-    if (sep1 <= 0 || sep2 <= sep1) return false;
+    int sep3 = payload.indexOf(':', sep2 + 1);
+    if (sep1 <= 0 || sep2 <= sep1 || sep3 <= sep2) return false;
 
     String tag = payload.substring(0, sep1);
     if (tag != "CONFIG") return false;
 
-    String hoursStr = payload.substring(sep1 + 1, sep2);
-    String pin      = payload.substring(sep2 + 1);
+    String hoursStr    = payload.substring(sep1 + 1, sep2);
+    String emgHoursStr = payload.substring(sep2 + 1, sep3);
+    String pin         = payload.substring(sep3 + 1);
 
     if (pin != storage->loadAdminPin()) {
         Serial.println("[CONFIG] PIN administrativo incorreto.");
@@ -109,12 +115,19 @@ bool LockController::handleConfigPayload(const String &payload, Storage *storage
 
     long hoursLong = hoursStr.toInt();
     if (hoursLong < MIN_TOLERANCE_HOURS || hoursLong > MAX_TOLERANCE_HOURS) {
-        Serial.println("[CONFIG] Faixa de horas invalida.");
+        Serial.println("[CONFIG] Faixa de horas (tolerancia normal) invalida.");
+        return false;
+    }
+
+    long emgHoursLong = emgHoursStr.toInt();
+    if (emgHoursLong < EMERGENCY_MIN_HOURS || emgHoursLong > EMERGENCY_MAX_HOURS) {
+        Serial.println("[CONFIG] Faixa de horas (emergencia) invalida.");
         return false;
     }
 
     storage->saveDefaultToleranceHours((uint16_t)hoursLong);
-    Serial.printf("[CONFIG] Tolerancia padrao atualizada para %ldh\n", hoursLong);
+    storage->saveEmergencyToleranceHours((uint16_t)emgHoursLong);
+    Serial.printf("[CONFIG] Tolerancia padrao=%ldh, emergencia=%ldh\n", hoursLong, emgHoursLong);
     return true;
 }
 
@@ -162,20 +175,24 @@ bool LockController::triggerEmergencyRelease() {
                         "instante sera 0 ate proxima sincronizacao via app.");
     }
 
+    // Duracao configuravel pelo admin (característica CONFIG, ver
+    // handleConfigPayload) -- cai no valor de fabrica se nunca configurada.
+    uint16_t emgHours = storage_->loadEmergencyToleranceHours();
+
     // Libera por uma janela curta -- e' uma saida de emergencia, nao um
     // turno normal de uso. Assim que possivel, o motorista (ou o parceiro,
     // ver driver_partners) deve autenticar normalmente via NFC/BLE.
     state_.driverId       = "EMERGENCY";
     state_.releaseEpoch   = now;
-    state_.expireEpoch    = now + (uint32_t)EMERGENCY_TOLERANCE_HOURS * 3600UL;
-    state_.toleranceHours = EMERGENCY_TOLERANCE_HOURS;
+    state_.expireEpoch    = now + (uint32_t)emgHours * 3600UL;
+    state_.toleranceHours = emgHours;
     storage_->saveState(state_);
     storage_->saveEmergencyPendingEpoch(now); // fica pendente ate o app confirmar (ACK) a sincronizacao
 
     applyGpioState(true);
-    Serial.printf("[EMERGENCY] Botao fisico segurado por >=%dms. Liberado por %dh. "
+    Serial.printf("[EMERGENCY] Botao fisico segurado por >=%dms. Liberado por %uh. "
                   "Evento pendente de sincronizacao/justificativa.\n",
-                  EMERGENCY_HOLD_MS, EMERGENCY_TOLERANCE_HOURS);
+                  EMERGENCY_HOLD_MS, emgHours);
     return true;
 }
 

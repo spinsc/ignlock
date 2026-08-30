@@ -93,10 +93,17 @@ GPIO32 do DevKit ──── botão momentâneo NA ──── GND
   liberar — reduz o risco de acionamento acidental, já que este caminho
   ignora toda a autenticação normal por definição. É a única mitigação
   técnica contra abuso; o resto é procedural (log + justificativa).
-- Libera por **1 hora** apenas (`EMERGENCY_TOLERANCE_HOURS`), bem mais
-  curto que a janela normal (4–48h) — é uma saída de emergência, não um
-  turno de trabalho. Passada 1h, volta a bloquear normalmente e exige o
-  procedimento NFC/BLE de novo.
+- Libera por uma janela curta e **configurável por veículo** — 1 hora de
+  fábrica (`EMERGENCY_TOLERANCE_HOURS`), ajustável entre 1 e 6 horas
+  (`EMERGENCY_MIN_HOURS`/`EMERGENCY_MAX_HOURS`) pelo app → ícone de
+  engrenagem na tela de liberação → PIN administrativo do veículo (tela
+  `AdminConfigScreen`, mesmo mecanismo que já configurava a tolerância
+  normal via característica BLE `CONFIG`, agora estendida para
+  `CONFIG:HOURS:EMERGENCY_HOURS:PIN`). O teto de 6h é deliberado: mesmo
+  configurável, continua sendo uma saída de emergência, não um turno de
+  trabalho — para isso já existe a liberação normal (4–48h). Passada a
+  janela, volta a bloquear normalmente e exige o procedimento NFC/BLE de
+  novo. O PIN é o do próprio ESP32 (por veículo), não a senha do painel.
 - Grava o instante do acionamento na memória local do ESP32 (NVS),
   sobrevive a reboot, e expõe via uma característica BLE dedicada
   (`CHR_UUID_EMERGENCY`, payload `EMG:<epoch>`) até o app confirmar que
