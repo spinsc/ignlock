@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import '../models/trip_log.dart';
 import '../models/vehicle_tag.dart';
 import '../models/emergency_event.dart';
+import '../models/sponsor_ad.dart';
 import '../services/ble_service.dart';
 import '../services/local_db_service.dart';
 import '../services/nfc_service.dart';
+import '../services/sponsor_ads_service.dart';
 import '../services/sync_service.dart';
+import '../widgets/sponsor_ad_banner.dart';
 import 'admin_config_screen.dart';
 
 enum _FlowStep { idle, scanningNfc, connectingBle, form, sending, done, error }
@@ -32,11 +35,23 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   final _bleService = BleService();
   final _dbService = LocalDbService();
   late final _syncService = SyncService(_dbService);
+  final _sponsorAdsService = SponsorAdsService();
 
   _FlowStep _step = _FlowStep.idle;
   String? _errorMessage;
   VehicleTag? _vehicleTag;
   bool _emergencyPendingWasSynced = false; // mostra aviso não-bloqueante no formulário
+  SponsorAd? _sponsorAd; // exibido de forma discreta só na tela inicial (idle)
+
+  @override
+  void initState() {
+    super.initState();
+    // Melhor esforço, nunca bloqueia nem falha a tela — é conteúdo
+    // secundário (ver SponsorAdsService.fetchOne).
+    _sponsorAdsService.fetchOne().then((ad) {
+      if (mounted) setState(() => _sponsorAd = ad);
+    });
+  }
 
   @override
   void dispose() {
@@ -208,17 +223,29 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   }
 
   Widget _buildIdle() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.nfc, size: 96),
-          const SizedBox(height: 16),
-          const Text('Toque para iniciar a liberação', textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          FilledButton(onPressed: _startFlow, child: const Text('Aproximar do veículo')),
+    return Column(
+      children: [
+        Expanded(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.nfc, size: 96),
+                const SizedBox(height: 16),
+                const Text('Toque para iniciar a liberação', textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                FilledButton(onPressed: _startFlow, child: const Text('Aproximar do veículo')),
+              ],
+            ),
+          ),
+        ),
+        // Espaço discreto de patrocinador — só na tela inicial, nunca
+        // durante o fluxo de liberação em si (ver docs/13-patrocinadores.md).
+        if (_sponsorAd != null) ...[
+          SponsorAdBanner(ad: _sponsorAd!),
+          const SizedBox(height: 8),
         ],
-      ),
+      ],
     );
   }
 

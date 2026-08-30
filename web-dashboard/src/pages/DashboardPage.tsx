@@ -9,8 +9,9 @@ import { UsersPanel } from '../components/UsersPanel';
 import { AccessPanel } from '../components/AccessPanel';
 import { TrackingPanel } from '../components/TrackingPanel';
 import { EmergencyPanel } from '../components/EmergencyPanel';
+import { SponsorsPanel } from '../components/SponsorsPanel';
 
-type Tab = 'vehicles' | 'drivers' | 'access' | 'logs' | 'tracking' | 'emergency' | 'users';
+type Tab = 'vehicles' | 'drivers' | 'access' | 'logs' | 'tracking' | 'emergency' | 'sponsors' | 'users';
 
 export function DashboardPage({ session }: { session: Session }) {
   const [tab, setTab] = useState<Tab>('logs');
@@ -28,7 +29,10 @@ export function DashboardPage({ session }: { session: Session }) {
           <button className={tab === 'access' ? 'active' : ''} onClick={() => setTab('access')}>Autorizações</button>
           <button className={tab === 'emergency' ? 'active' : ''} onClick={() => setTab('emergency')}>Emergências</button>
           {isAdmin && (
-            <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Usuários</button>
+            <>
+              <button className={tab === 'sponsors' ? 'active' : ''} onClick={() => setTab('sponsors')}>Patrocinadores</button>
+              <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Usuários</button>
+            </>
           )}
         </nav>
         <div className="topbar-user">
@@ -44,6 +48,7 @@ export function DashboardPage({ session }: { session: Session }) {
         {tab === 'drivers' && <DriversPanel />}
         {tab === 'access' && <AccessPanel />}
         {tab === 'emergency' && <EmergencyPanel />}
+        {tab === 'sponsors' && isAdmin && <SponsorsPanel />}
         {tab === 'users' && <UsersPanel isAdmin={isAdmin} />}
       </main>
     </div>

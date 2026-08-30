@@ -82,6 +82,20 @@ export type EmergencyEvent = {
   vehicles: { plate: string | null; model: string | null } | null;
 };
 
+export type SponsorAd = {
+  id: string;
+  sponsor_name: string;
+  headline: string | null;
+  image_url: string;
+  link_url: string | null;
+  target_audience: string | null;
+  weight: number;
+  active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_at: string;
+};
+
 export type TripLog = {
   id: string;
   vehicle_id: string;

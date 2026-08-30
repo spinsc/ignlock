@@ -108,6 +108,14 @@ assim que reconecta normalmente ao veículo. `driver_code` e
 (seletor de condutor + campo de texto) — o botão físico não coleta essa
 informação no momento do acionamento.
 
+## Patrocinadores
+
+A aba **Patrocinadores** (só admin) gerencia anúncios pagos de
+fornecedores (tabela `sponsor_ads` + bucket de storage `sponsor-ads`) —
+exibidos aqui e, de forma discreta, na tela inicial do app. Único
+conteúdo do schema com leitura pública real pela chave anônima (o
+conteúdo é publicitário, não sensível). Ver `docs/13-patrocinadores.md`.
+
 ## Arquitetura de dados e segurança
 
 O schema (`vehicles`, `drivers`, `trip_logs`, `profiles`,
@@ -125,6 +133,7 @@ Resumo do modelo de permissões:
 | `driver_vehicle_access` | sem acesso | leitura + escrita total |
 | `driver_partners` | sem acesso | leitura + escrita total |
 | `emergency_events` | **somente INSERT** (nunca lê) | leitura + `UPDATE` (justificativa) |
+| `sponsor_ads` | **leitura pública** (só anúncios ativos e no período) | leitura + escrita total |
 
 **Importante:** por causa dessa política, qualquer código que insira em
 `trip_logs` (ou `emergency_events`, mesma regra) usando a chave anônima
