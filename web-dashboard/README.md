@@ -91,6 +91,23 @@ operar qualquer veículo, autorizado ou não, até o firmware ganhar essa
 validação (fora do escopo atual, combinado para quando o firmware voltar à
 mesa).
 
+Logo abaixo, na mesma aba, **Motorista parceiro** vincula um condutor
+parceiro a um condutor oficial por veículo (tabela `driver_partners`,
+N:N) — o parceiro fica autorizado a dar partida na ausência do oficial,
+mas só durante a posse dele (`trip_logs` aberto). Mesma ressalva acima:
+é gestão/relatório, não uma trava técnica em tempo real. Ver
+`docs/12-emergencia-e-parceiro.md`.
+
+## Emergências
+
+A aba **Emergências** lista os acionamentos do botão físico de emergência
+opcional (hardware, ver `docs/12-emergencia-e-parceiro.md`) — libera a
+partida sem NFC/BLE, e o app sincroniza o evento (`emergency_events`)
+assim que reconecta normalmente ao veículo. `driver_code` e
+`justification` ficam vazios até alguém preencher aqui no painel
+(seletor de condutor + campo de texto) — o botão físico não coleta essa
+informação no momento do acionamento.
+
 ## Arquitetura de dados e segurança
 
 O schema (`vehicles`, `drivers`, `trip_logs`, `profiles`,
@@ -106,12 +123,15 @@ Resumo do modelo de permissões:
 | `trip_logs` | **somente INSERT** (nunca lê) | leitura (somente leitura) |
 | `profiles` | sem acesso | leitura (todos); escrita só para `role=admin` |
 | `driver_vehicle_access` | sem acesso | leitura + escrita total |
+| `driver_partners` | sem acesso | leitura + escrita total |
+| `emergency_events` | **somente INSERT** (nunca lê) | leitura + `UPDATE` (justificativa) |
 
 **Importante:** por causa dessa política, qualquer código que insira em
-`trip_logs` usando a chave anônima **não pode** encadear `.select()` — pedir
-o registro de volta exige uma permissão de leitura que o app não tem, e a
-chamada falha com erro de RLS mesmo o insert sendo aceito. Foi exatamente
-esse comportamento que validamos ao testar a integração (ver
+`trip_logs` (ou `emergency_events`, mesma regra) usando a chave anônima
+**não pode** encadear `.select()` — pedir o registro de volta exige uma
+permissão de leitura que o app não tem, e a chamada falha com erro de RLS
+mesmo o insert sendo aceito. Foi exatamente esse comportamento que
+validamos ao testar a integração (ver
 `mobile_app/lib/services/sync_service.dart`).
 
 `trip_logs.vehicle_id` e `trip_logs.driver_code` são chaves estrangeiras

@@ -63,3 +63,22 @@ void Storage::saveAdminPin(const String &pin) {
     prefs.putString(NVS_KEY_ADMIN_PIN, pin);
     prefs.end();
 }
+
+uint32_t Storage::loadEmergencyPendingEpoch() {
+    prefs.begin(NVS_NAMESPACE, true);
+    uint32_t epoch = prefs.getUInt(NVS_KEY_EMERGENCY_EPOCH, 0);
+    prefs.end();
+    return epoch;
+}
+
+void Storage::saveEmergencyPendingEpoch(uint32_t epoch) {
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putUInt(NVS_KEY_EMERGENCY_EPOCH, epoch);
+    prefs.end();
+}
+
+void Storage::clearEmergencyPending() {
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putUInt(NVS_KEY_EMERGENCY_EPOCH, 0);
+    prefs.end();
+}

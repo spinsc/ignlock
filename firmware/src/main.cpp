@@ -47,13 +47,22 @@ void loop() {
     static uint32_t lastTick = 0;
     uint32_t now = millis();
 
+    // Botão de emergência (opcional, ver docs/12): lido a CADA iteração —
+    // diferente do tick de expiração abaixo, a detecção de pressão longa
+    // (EMERGENCY_HOLD_MS) precisa de leitura frequente do GPIO. Só volta
+    // true na iteração em que um novo evento é disparado.
+    if (lockController.pollEmergencyButton()) {
+        g_bleService.notifyStatus();
+        g_bleService.notifyEmergency();
+    }
+
     // Reavalia expiração da tolerância a cada 5s (não precisa ser mais
     // frequente — a janela é medida em horas).
     if (now - lastTick >= 5000) {
         lastTick = now;
-        bool wasUnlocked = lockController.isUnlocked();
+        bool wasUnlockedTick = lockController.isUnlocked();
         lockController.tick();
-        if (wasUnlocked && !lockController.isUnlocked()) {
+        if (wasUnlockedTick && !lockController.isUnlocked()) {
             g_bleService.notifyStatus(); // avisa o app que expirou
         }
     }

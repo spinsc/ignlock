@@ -57,6 +57,31 @@ export type VehiclePosition = {
   vehicles: { plate: string | null; model: string | null } | null;
 };
 
+export type DriverPartner = {
+  vehicle_id: string;
+  official_driver_code: string;
+  partner_driver_code: string;
+  created_at: string;
+  // Preenchidos via embed do PostgREST (join por FK nomeada — há duas FKs
+  // para "drivers" nesta tabela, então cada uma precisa do hint explícito).
+  official: { full_name: string } | null;
+  partner: { full_name: string } | null;
+  vehicles: { plate: string | null; model: string | null } | null;
+};
+
+export type EmergencyEvent = {
+  id: string;
+  vehicle_id: string;
+  triggered_at: string;
+  driver_code: string | null;
+  justification: string | null;
+  justified_at: string | null;
+  justified_by: 'motorista' | 'admin' | null;
+  synced_at: string;
+  drivers: { full_name: string } | null;
+  vehicles: { plate: string | null; model: string | null } | null;
+};
+
 export type TripLog = {
   id: string;
   vehicle_id: string;

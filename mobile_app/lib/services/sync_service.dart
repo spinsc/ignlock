@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/trip_log.dart';
+import '../models/emergency_event.dart';
 import 'local_db_service.dart';
 
 /// Sincronização em lote dos logs de viagem com o Supabase (projeto
@@ -54,6 +55,40 @@ class SyncService {
       return false;
     } catch (e) {
       // Sem conectividade ou erro de rede — tenta novamente na próxima chamada.
+      return false;
+    }
+  }
+
+  /// Sincroniza eventos pendentes do botão de emergência (ver docs/12).
+  /// Mesma regra de `_uploadOne`: nunca encadear `.select()` no insert —
+  /// a chave anônima só tem permissão de INSERT em `emergency_events`.
+  Future<int> syncPendingEmergency() async {
+    final pending = await db.getPendingEmergencySync();
+    if (pending.isEmpty) return 0;
+
+    var syncedCount = 0;
+    for (final ev in pending) {
+      final ok = await _uploadOneEmergency(ev);
+      if (ok && ev.id != null) {
+        await db.markEmergencySynced(ev.id!);
+        syncedCount++;
+      }
+    }
+    return syncedCount;
+  }
+
+  Future<bool> _uploadOneEmergency(EmergencyEvent ev) async {
+    try {
+      await _client.from('emergency_events').insert({
+        'vehicle_id': ev.vehicleId,
+        'triggered_at': ev.triggeredAt.toUtc().toIso8601String(),
+      });
+      return true;
+    } on PostgrestException catch (e) {
+      // ignore: avoid_print
+      print('[SyncService] Falha ao sincronizar emergência ${ev.id}: ${e.message}');
+      return false;
+    } catch (e) {
       return false;
     }
   }

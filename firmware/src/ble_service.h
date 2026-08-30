@@ -9,6 +9,7 @@ class BleService {
 public:
     void begin(LockController *lockController, Storage *storage);
     void notifyStatus(); // chamar após qualquer mudança de estado
+    void notifyEmergency(); // chamar após novo acionamento ou ACK do app
     void loopHousekeeping(); // reinicia advertising após desconexão
 
 private:

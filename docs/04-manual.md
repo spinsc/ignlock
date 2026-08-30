@@ -148,6 +148,11 @@ TRUCK-042;AA:BB:CC:DD:EE:FF
 - Não force a leitura NFC contra vidro ou metal — encoste diretamente na área da tag no painel.
 - Em caso de falha de leitura, aguarde 2-3 segundos e tente novamente antes de reportar problema.
 
+### D.4.5 Motorista Parceiro e Botão de Emergência
+
+- **Motorista parceiro**: se o painel cadastrou um parceiro para o seu veículo (aba Autorizações → Motorista parceiro), ele pode repetir o procedimento normal da Seção D.4.1 — com o próprio ID dele — **enquanto sua liberação ainda estiver dentro da janela de tolerância** (o carro ainda "em posse" sua). Isso serve para o caso de você não estar por perto no momento em que o veículo precisa ser movido de novo.
+- **Botão de emergência** (se instalado no seu veículo — é opcional, ver docs/12): segure o botão físico no painel por **3 segundos** para liberar a partida sem precisar de NFC/BLE. Use apenas em emergência real — o sistema grava o instante do acionamento e, assim que o celular estiver por perto de novo, sincroniza esse registro com o painel automaticamente. Você (ou seu supervisor) deve preencher o motivo do uso depois, na aba Emergências do painel ou administrativamente.
+
 ---
 
 ## D.5 Matriz de Troubleshooting / Resolução de Problemas

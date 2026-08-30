@@ -25,12 +25,25 @@ public:
     bool isUnlocked() const { return unlocked_; }
     String statusPayload() const; // string p/ característica STATUS
 
+    // Botão físico de emergência (opcional, ver docs/12). Chamar a CADA
+    // iteração do loop() principal (não só no tick de 5s) — a detecção de
+    // pressão longa depende de leitura frequente do GPIO. Retorna true só
+    // na chamada em que um novo evento acabou de ser disparado (o chamador
+    // usa isso para notificar o BLE, sem precisar reler o estado toda hora).
+    bool pollEmergencyButton();
+    uint32_t pendingEmergencyEpoch() const; // 0 = nenhum evento pendente
+    void ackEmergencySynced(); // chamado pelo BLE ao receber "ACK" do app
+
 private:
     void applyGpioState(bool unlock);
     void forceLockFailSafe(const char *reason);
+    bool triggerEmergencyRelease();
 
     Storage   *storage_ = nullptr;
     RtcClock  *rtc_     = nullptr;
     bool       unlocked_ = false;
     LockState  state_;
+
+    uint32_t   emergencyPressStartMs_ = 0; // 0 = botão solto
+    bool       emergencyHandled_ = false;   // evita redisparo na mesma pressão
 };

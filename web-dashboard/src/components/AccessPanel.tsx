@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase, type Driver, type Vehicle } from '../lib/supabaseClient';
+import { supabase, type Driver, type DriverPartner, type Vehicle } from '../lib/supabaseClient';
 
 export function AccessPanel() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -9,6 +9,14 @@ export function AccessPanel() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [partners, setPartners] = useState<DriverPartner[]>([]);
+  const [partnersLoading, setPartnersLoading] = useState(true);
+  const [partnersError, setPartnersError] = useState<string | null>(null);
+  const [pVehicle, setPVehicle] = useState('');
+  const [pOfficial, setPOfficial] = useState('');
+  const [pPartner, setPPartner] = useState('');
+  const [pBusy, setPBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -22,9 +30,56 @@ export function AccessPanel() {
       if (v.error) setError(v.error.message);
       else setVehicles((v.data ?? []) as Vehicle[]);
       if (d.data && d.data.length > 0) setSelectedDriver(d.data[0].driver_code);
+      if (v.data && v.data.length > 0) setPVehicle(v.data[0].vehicle_id);
       setLoading(false);
     })();
+    loadPartners();
   }, []);
+
+  function loadPartners() {
+    setPartnersLoading(true);
+    supabase
+      .from('driver_partners')
+      .select(
+        'vehicle_id, official_driver_code, partner_driver_code, created_at,' +
+          'official:drivers!driver_partners_official_driver_code_fkey(full_name),' +
+          'partner:drivers!driver_partners_partner_driver_code_fkey(full_name),' +
+          'vehicles(plate, model)'
+      )
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) setPartnersError(error.message);
+        else setPartners((data ?? []) as unknown as DriverPartner[]);
+        setPartnersLoading(false);
+      });
+  }
+
+  async function addPartner() {
+    if (!pVehicle || !pOfficial || !pPartner) return;
+    if (pOfficial === pPartner) { setPartnersError('O parceiro precisa ser um condutor diferente do oficial.'); return; }
+    setPBusy(true);
+    setPartnersError(null);
+    const { error } = await supabase
+      .from('driver_partners')
+      .insert({ vehicle_id: pVehicle, official_driver_code: pOfficial, partner_driver_code: pPartner });
+    setPBusy(false);
+    if (error) { setPartnersError(error.message); return; }
+    loadPartners();
+  }
+
+  async function removePartner(p: DriverPartner) {
+    setPartnersError(null);
+    const { error } = await supabase
+      .from('driver_partners')
+      .delete()
+      .eq('vehicle_id', p.vehicle_id)
+      .eq('official_driver_code', p.official_driver_code)
+      .eq('partner_driver_code', p.partner_driver_code);
+    if (error) { setPartnersError(error.message); return; }
+    setPartners((prev) => prev.filter((x) =>
+      !(x.vehicle_id === p.vehicle_id && x.official_driver_code === p.official_driver_code && x.partner_driver_code === p.partner_driver_code)
+    ));
+  }
 
   useEffect(() => {
     if (!selectedDriver) { setAuthorized(new Set()); return; }
@@ -161,6 +216,99 @@ export function AccessPanel() {
             no momento da liberação (o ESP32 recusar um motorista não autorizado) depende do firmware, que ainda
             não consulta esta tabela — está no plano de trabalho combinado para quando o firmware voltar ao escopo.
           </p>
+        </>
+      )}
+
+      <div className="panel-head" style={{ marginTop: 32 }}>
+        <div>
+          <h2>Motorista parceiro (opcional)</h2>
+          <p className="panel-sub">
+            Vincula um condutor parceiro a um condutor oficial, em um veículo específico. O parceiro fica
+            autorizado a dar partida nesse veículo apenas na ausência do oficial — durante a posse dele
+            (enquanto houver um log de viagem aberto do oficial para esse veículo, ver aba Logs de Viagem).
+          </p>
+        </div>
+      </div>
+
+      {partnersError && <p className="form-error">{partnersError}</p>}
+
+      {drivers.length < 2 ? (
+        <p className="muted">Cadastre pelo menos dois condutores para configurar um vínculo de parceiro.</p>
+      ) : (
+        <>
+          <div className="inline-form" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="muted" style={{ padding: 0, whiteSpace: 'nowrap' }}>Veículo:</span>
+              <select
+                value={pVehicle}
+                onChange={(e) => setPVehicle(e.target.value)}
+                style={{ padding: '9px 11px', borderRadius: 3, border: '1px solid var(--border)', background: 'var(--sheet)', color: 'var(--ink)' }}
+              >
+                {vehicles.map((v) => <option key={v.id} value={v.vehicle_id}>{v.vehicle_id}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="muted" style={{ padding: 0, whiteSpace: 'nowrap' }}>Oficial:</span>
+              <select
+                value={pOfficial}
+                onChange={(e) => setPOfficial(e.target.value)}
+                style={{ padding: '9px 11px', borderRadius: 3, border: '1px solid var(--border)', background: 'var(--sheet)', color: 'var(--ink)' }}
+              >
+                <option value="">Selecione…</option>
+                {drivers.map((d) => <option key={d.driver_code} value={d.driver_code}>{d.full_name}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="muted" style={{ padding: 0, whiteSpace: 'nowrap' }}>Parceiro:</span>
+              <select
+                value={pPartner}
+                onChange={(e) => setPPartner(e.target.value)}
+                style={{ padding: '9px 11px', borderRadius: 3, border: '1px solid var(--border)', background: 'var(--sheet)', color: 'var(--ink)' }}
+              >
+                <option value="">Selecione…</option>
+                {drivers.map((d) => <option key={d.driver_code} value={d.driver_code}>{d.full_name}</option>)}
+              </select>
+            </label>
+            <button type="button" onClick={addPartner} disabled={pBusy || !pVehicle || !pOfficial || !pPartner}>
+              Vincular
+            </button>
+          </div>
+
+          <table style={{ marginTop: 12 }}>
+            <thead>
+              <tr>
+                <th>Veículo</th>
+                <th>Oficial</th>
+                <th>Parceiro</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {partnersLoading ? (
+                <tr><td colSpan={4} className="muted">Carregando…</td></tr>
+              ) : partners.length === 0 ? (
+                <tr><td colSpan={4} className="muted">Nenhum vínculo de parceiro cadastrado.</td></tr>
+              ) : (
+                partners.map((p) => (
+                  <tr key={`${p.vehicle_id}-${p.official_driver_code}-${p.partner_driver_code}`}>
+                    <td>
+                      <span className="mono">{p.vehicle_id}</span>
+                      {(p.vehicles?.plate || p.vehicles?.model) && (
+                        <div className="muted" style={{ padding: '2px 0 0', fontSize: 11 }}>
+                          {[p.vehicles?.plate, p.vehicles?.model].filter(Boolean).join(' · ')}
+                        </div>
+                      )}
+                    </td>
+                    <td>{p.official?.full_name ?? p.official_driver_code}</td>
+                    <td>{p.partner?.full_name ?? p.partner_driver_code}</td>
+                    <td>
+                      <button type="button" className="ghost" onClick={() => removePartner(p)}>Remover</button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </>
       )}
     </section>

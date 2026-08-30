@@ -6,6 +6,7 @@ BleService g_bleService;
 
 static NimBLEServer *s_server = nullptr;
 static NimBLECharacteristic *s_statusChar = nullptr;
+static NimBLECharacteristic *s_emergencyChar = nullptr;
 static bool s_deviceConnected = false;
 
 // ---------------------------------------------------------------------------
@@ -65,6 +66,27 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// Característica EMERGENCY (read/notify/write) — ver docs/12. Notifica
+// "EMG:<epoch>" (0 = nenhum) quando o botão físico é acionado; o app
+// escreve "ACK" de volta assim que sincroniza o evento com o painel.
+// ---------------------------------------------------------------------------
+class EmergencyCallbacks : public NimBLECharacteristicCallbacks {
+public:
+    explicit EmergencyCallbacks(LockController *lc) : lockController_(lc) {}
+
+    void onWrite(NimBLECharacteristic *chr) override {
+        std::string value = chr->getValue();
+        if (String(value.c_str()) == "ACK") {
+            lockController_->ackEmergencySynced();
+            g_bleService.notifyEmergency();
+        }
+    }
+
+private:
+    LockController *lockController_;
+};
+
+// ---------------------------------------------------------------------------
 void BleService::begin(LockController *lockController, Storage *storage) {
     lockController_ = lockController;
     storage_ = storage;
@@ -99,6 +121,14 @@ void BleService::begin(LockController *lockController, Storage *storage) {
         NIMBLE_PROPERTY::WRITE);
     configChar->setCallbacks(new ConfigCallbacks(lockController_, storage_));
 
+    s_emergencyChar = svc->createCharacteristic(
+        CHR_UUID_EMERGENCY,
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::WRITE);
+    s_emergencyChar->setCallbacks(new EmergencyCallbacks(lockController_));
+    char emgBuf[16];
+    snprintf(emgBuf, sizeof(emgBuf), "EMG:%u", lockController_->pendingEmergencyEpoch());
+    s_emergencyChar->setValue(emgBuf);
+
     svc->start();
 
     NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
@@ -115,6 +145,16 @@ void BleService::notifyStatus() {
     s_statusChar->setValue(payload.c_str());
     if (s_deviceConnected) {
         s_statusChar->notify();
+    }
+}
+
+void BleService::notifyEmergency() {
+    if (!s_emergencyChar) return;
+    char buf[16];
+    snprintf(buf, sizeof(buf), "EMG:%u", lockController_->pendingEmergencyEpoch());
+    s_emergencyChar->setValue(buf);
+    if (s_deviceConnected) {
+        s_emergencyChar->notify();
     }
 }
 

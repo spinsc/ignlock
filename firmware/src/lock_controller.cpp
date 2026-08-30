@@ -11,6 +11,7 @@ void LockController::begin(Storage *storage, RtcClock *rtc) {
     pinMode(PIN_PUMP_CTRL, OUTPUT);
     pinMode(PIN_STATUS_LED_R, OUTPUT);
     pinMode(PIN_STATUS_LED_G, OUTPUT);
+    pinMode(PIN_EMERGENCY_BTN, INPUT_PULLUP); // opcional — sem botão instalado, fica sempre HIGH (solto)
     applyGpioState(false);
 
     state_ = storage_->loadState();
@@ -126,6 +127,65 @@ String LockController::statusPayload() const {
              state_.expireEpoch,
              state_.toleranceHours);
     return String(buf);
+}
+
+// ---------------------------------------------------------------------------
+// Botão de emergência (opcional) — ver docs/12-emergencia-e-parceiro.md
+// ---------------------------------------------------------------------------
+bool LockController::pollEmergencyButton() {
+    // Normalmente aberto, para GND, com INPUT_PULLUP -- LOW = pressionado.
+    bool pressed = (digitalRead(PIN_EMERGENCY_BTN) == LOW);
+    uint32_t now = millis();
+
+    if (!pressed) {
+        emergencyPressStartMs_ = 0;
+        emergencyHandled_ = false;
+        return false;
+    }
+    if (emergencyPressStartMs_ == 0) {
+        emergencyPressStartMs_ = now; // início de uma nova pressão
+        return false;
+    }
+    if (emergencyHandled_) return false; // já disparou nesta pressão contínua
+
+    if (now - emergencyPressStartMs_ >= EMERGENCY_HOLD_MS) {
+        emergencyHandled_ = true;
+        return triggerEmergencyRelease();
+    }
+    return false;
+}
+
+bool LockController::triggerEmergencyRelease() {
+    uint32_t now = rtc_->nowEpoch();
+    if (now == 0) {
+        Serial.println("[EMERGENCY] RTC sem hora confiavel -- liberando mesmo assim, "
+                        "instante sera 0 ate proxima sincronizacao via app.");
+    }
+
+    // Libera por uma janela curta -- e' uma saida de emergencia, nao um
+    // turno normal de uso. Assim que possivel, o motorista (ou o parceiro,
+    // ver driver_partners) deve autenticar normalmente via NFC/BLE.
+    state_.driverId       = "EMERGENCY";
+    state_.releaseEpoch   = now;
+    state_.expireEpoch    = now + (uint32_t)EMERGENCY_TOLERANCE_HOURS * 3600UL;
+    state_.toleranceHours = EMERGENCY_TOLERANCE_HOURS;
+    storage_->saveState(state_);
+    storage_->saveEmergencyPendingEpoch(now); // fica pendente ate o app confirmar (ACK) a sincronizacao
+
+    applyGpioState(true);
+    Serial.printf("[EMERGENCY] Botao fisico segurado por >=%dms. Liberado por %dh. "
+                  "Evento pendente de sincronizacao/justificativa.\n",
+                  EMERGENCY_HOLD_MS, EMERGENCY_TOLERANCE_HOURS);
+    return true;
+}
+
+uint32_t LockController::pendingEmergencyEpoch() const {
+    return storage_->loadEmergencyPendingEpoch();
+}
+
+void LockController::ackEmergencySynced() {
+    storage_->clearEmergencyPending();
+    Serial.println("[EMERGENCY] App confirmou sincronizacao -- evento limpo da memoria local.");
 }
 
 void LockController::applyGpioState(bool unlock) {

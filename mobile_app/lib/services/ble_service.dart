@@ -9,6 +9,7 @@ class GattUuids {
   static final Guid auth = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0002');
   static final Guid status = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0003');
   static final Guid config = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0004');
+  static final Guid emergency = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0005');
 }
 
 enum LockStatus { unknown, locked, unlocked }
@@ -41,6 +42,7 @@ class BleService {
   BluetoothCharacteristic? _authChar;
   BluetoothCharacteristic? _statusChar;
   BluetoothCharacteristic? _configChar;
+  BluetoothCharacteristic? _emergencyChar;
 
   StreamController<LockStatusUpdate>? _statusController;
   Stream<LockStatusUpdate> get statusStream =>
@@ -81,6 +83,7 @@ class BleService {
       if (c.uuid == GattUuids.auth) _authChar = c;
       if (c.uuid == GattUuids.status) _statusChar = c;
       if (c.uuid == GattUuids.config) _configChar = c;
+      if (c.uuid == GattUuids.emergency) _emergencyChar = c;
     }
 
     if (_authChar == null || _statusChar == null) {
@@ -114,12 +117,33 @@ class BleService {
     await _configChar!.write(utf8.encode(payload), withoutResponse: false);
   }
 
+  /// Lê o instante (epoch, ou 0 se não houver) do último acionamento do
+  /// botão físico de emergência ainda não confirmado (ver docs/12 e
+  /// firmware/src/lock_controller.cpp). Retorna 0 em veículos com firmware
+  /// anterior ao botão de emergência (característica ausente).
+  Future<int> readPendingEmergencyEpoch() async {
+    if (_emergencyChar == null) return 0;
+    final bytes = await _emergencyChar!.read();
+    final raw = utf8.decode(bytes); // formato: "EMG:<epoch>"
+    final parts = raw.split(':');
+    if (parts.length < 2) return 0;
+    return int.tryParse(parts[1]) ?? 0;
+  }
+
+  /// Confirma ao ESP32 que o evento de emergência já foi sincronizado com o
+  /// painel — o firmware limpa o registro pendente da memória local (NVS).
+  Future<void> ackEmergency() async {
+    if (_emergencyChar == null) return;
+    await _emergencyChar!.write(utf8.encode('ACK'), withoutResponse: false);
+  }
+
   Future<void> disconnect() async {
     await _device?.disconnect();
     _device = null;
     _authChar = null;
     _statusChar = null;
     _configChar = null;
+    _emergencyChar = null;
   }
 
   void dispose() {

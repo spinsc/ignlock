@@ -24,4 +24,10 @@ public:
 
     String loadAdminPin();
     void saveAdminPin(const String &pin);
+
+    // Evento pendente do botão de emergência (ver docs/12) — sobrevive a
+    // reboot até o app confirmar (ACK) que sincronizou com o painel.
+    uint32_t loadEmergencyPendingEpoch(); // 0 = nenhum
+    void saveEmergencyPendingEpoch(uint32_t epoch);
+    void clearEmergencyPending();
 };

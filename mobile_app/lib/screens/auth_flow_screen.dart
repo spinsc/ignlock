@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/trip_log.dart';
 import '../models/vehicle_tag.dart';
+import '../models/emergency_event.dart';
 import '../services/ble_service.dart';
 import '../services/local_db_service.dart';
 import '../services/nfc_service.dart';
@@ -34,6 +35,7 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   _FlowStep _step = _FlowStep.idle;
   String? _errorMessage;
   VehicleTag? _vehicleTag;
+  bool _emergencyPendingWasSynced = false; // mostra aviso não-bloqueante no formulário
 
   @override
   void dispose() {
@@ -58,12 +60,47 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       setState(() => _step = _FlowStep.connectingBle);
       await _bleService.connectByMac(tag.bleMac);
 
+      // Se o veículo tem firmware com botão de emergência (ver docs/12) e
+      // houve um acionamento ainda não confirmado, sincroniza com o painel
+      // agora — é a primeira oportunidade de conectividade desde o evento.
+      // Não bloqueia nem falha o fluxo normal de liberação por conta disso.
+      await _checkPendingEmergency(tag.vehicleId);
+
       setState(() => _step = _FlowStep.form);
     } catch (e) {
       setState(() {
         _step = _FlowStep.error;
         _errorMessage = e.toString();
       });
+    }
+  }
+
+  /// Lê a característica de emergência do ESP32; se houver um evento
+  /// pendente, grava localmente, tenta sincronizar com o Supabase e, se
+  /// deu certo, confirma (ACK) ao firmware para não reenviar depois.
+  /// Qualquer falha aqui é silenciosa — nunca deve impedir a liberação
+  /// normal, que é o fluxo principal desta tela.
+  Future<void> _checkPendingEmergency(String vehicleId) async {
+    try {
+      final epoch = await _bleService.readPendingEmergencyEpoch();
+      if (epoch <= 0) return;
+
+      final ev = EmergencyEvent(
+        vehicleId: vehicleId,
+        triggeredAt: DateTime.fromMillisecondsSinceEpoch(epoch * 1000, isUtc: true),
+      );
+      final id = await _dbService.insertEmergencyEventIfNew(ev);
+      if (id != null) {
+        final synced = await _syncService.syncPendingEmergency();
+        if (synced > 0) await _bleService.ackEmergency();
+      } else {
+        // Já registrado localmente em uma leitura anterior — ainda assim
+        // tenta sincronizar (pode ter falhado por falta de rede na vez passada).
+        await _syncService.syncPendingEmergency();
+      }
+      if (mounted) setState(() => _emergencyPendingWasSynced = true);
+    } catch (_) {
+      // Sem conectividade, veículo sem essa característica, etc. — ignora.
     }
   }
 
@@ -113,6 +150,7 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       _step = _FlowStep.idle;
       _errorMessage = null;
       _vehicleTag = null;
+      _emergencyPendingWasSynced = false;
     });
   }
 
@@ -180,6 +218,23 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       child: ListView(
         children: [
           Text('Veículo: ${_vehicleTag!.vehicleId}', style: Theme.of(context).textTheme.titleMedium),
+          if (_emergencyPendingWasSynced) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.amber),
+              ),
+              child: const Text(
+                'Este veículo teve o botão de emergência acionado recentemente. '
+                'O evento foi enviado ao painel — a justificativa pode ser preenchida '
+                'lá ou administrativamente.',
+                style: TextStyle(fontSize: 12.5),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           TextFormField(
             controller: _driverController,
