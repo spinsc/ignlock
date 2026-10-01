@@ -220,7 +220,8 @@
 
         <text x="405" y="300" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">GPIO25 → controle da bomba</text>
         <text x="405" y="315" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">GPIO21/22 → I2C RTC</text>
-        <text x="405" y="330" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">GPIO26/27 → LEDs de status</text>
+        <text x="405" y="330" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">GPIO26 → LED de status</text>
+        <text x="405" y="345" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">GPIO32 → botão de emergência (opcional)</text>
 
         <!-- power source into ESP32 -->
         <line x1="405" y1="60" x2="405" y2="90" stroke="var(--power)" stroke-width="2"/>
@@ -296,7 +297,7 @@
     </div>
 
     <figure class="drawing">
-      <svg viewBox="0 0 1520 1000" role="img" aria-label="Esquemático elétrico completo: da esquerda para a direita, a linha 15 alimenta um conversor buck que energiza o ESP32; o ESP32 aciona via GPIO25 e resistor R1 o LED interno do optoacoplador PC817, cuja barreira de isolamento separa o lado lógico do lado de potência; o fototransistor do PC817 puxa o nó de gate drive para GND, ligando o MOSFET IRF4905 que conecta a bateria permanente, via fusível F2, à bomba de combustível; diodos TVS e flyback protegem contra transientes automotivos; um módulo DS3231 fornece hora absoluta ao ESP32 via I2C.">
+      <svg viewBox="0 0 1520 1000" role="img" aria-label="Esquemático elétrico completo: da esquerda para a direita, a linha 15 alimenta um conversor buck que energiza o ESP32; o ESP32 aciona via GPIO25 e resistor R1 o LED interno do optoacoplador PC817, cuja barreira de isolamento separa o lado lógico do lado de potência; o fototransistor do PC817 puxa o nó de gate drive para GND, ligando o MOSFET IRF4905 que conecta a bateria permanente, via fusível F2, à bomba de combustível; diodos TVS e flyback protegem contra transientes automotivos; um módulo DS3231 fornece hora absoluta ao ESP32 via I2C; GPIO32 liga a um botão de emergência opcional, para GND, que libera a bomba sem NFC/BLE.">
 
         <defs>
           <marker id="jdot" markerWidth="1" markerHeight="1"></marker>
@@ -366,25 +367,24 @@
           <line x1="10" y1="-14" x2="16" y2="-22" stroke="var(--signal)" stroke-width="1" marker-end="url(#arrow)"/>
           <line x1="16" y1="-10" x2="22" y2="-18" stroke="var(--signal)" stroke-width="1" marker-end="url(#arrow)"/>
           <line x1="18" y1="9" x2="18" y2="60" stroke="var(--signal)" stroke-width="1.8"/>
-          <text x="34" y="4" font-size="10" fill="var(--signal)">LED1 VM</text>
+          <text x="34" y="4" font-size="10" fill="var(--signal)">LED1</text>
         </g>
 
-        <!-- GPIO27 -> R4b -> LED green -->
-        <line x1="580" y1="312" x2="640" y2="312" stroke="var(--signal)" stroke-width="1.8"/>
-        <text x="586" y="305" fill="var(--signal)" font-size="10">GPIO27</text>
-        <rect x="640" y="304" width="46" height="16" fill="none" stroke="var(--signal)" stroke-width="1.4"/>
-        <text x="663" y="296" text-anchor="middle" fill="var(--signal)" font-size="10">R4b 330Ω</text>
-        <line x1="686" y1="312" x2="726" y2="312" stroke="var(--signal)" stroke-width="1.8"/>
-        <g transform="translate(726,312)">
-          <polygon points="0,-9 0,9 18,0" fill="none" stroke="var(--signal)" stroke-width="1.4"/>
-          <line x1="18" y1="-9" x2="18" y2="9" stroke="var(--signal)" stroke-width="1.4"/>
-          <line x1="10" y1="-14" x2="16" y2="-22" stroke="var(--signal)" stroke-width="1" marker-end="url(#arrow)"/>
-          <line x1="16" y1="-10" x2="22" y2="-18" stroke="var(--signal)" stroke-width="1" marker-end="url(#arrow)"/>
-          <line x1="18" y1="9" x2="18" y2="4" stroke="var(--signal)" stroke-width="1.8"/>
-          <text x="34" y="4" font-size="10" fill="var(--signal)">LED2 VD</text>
+        <!-- GPIO32 -> SW1 botão de emergência (opcional, ver docs/12) -> GND -->
+        <!-- pull-up interno do ESP32 (INPUT_PULLUP) -- sem resistor externo -->
+        <line x1="580" y1="312" x2="700" y2="312" stroke="var(--signal)" stroke-width="1.8"/>
+        <text x="586" y="305" fill="var(--signal)" font-size="10">GPIO32</text>
+        <g stroke="var(--signal)" stroke-width="1.4" fill="none">
+          <circle cx="700" cy="312" r="3" fill="var(--signal)" stroke="none"/>
+          <line x1="700" y1="312" x2="700" y2="298"/>
+          <line x1="726" y1="312" x2="726" y2="298"/>
+          <line x1="694" y1="290" x2="732" y2="290"/>
+          <circle cx="726" cy="312" r="3" fill="var(--signal)" stroke="none"/>
         </g>
-        <line x1="744" y1="316" x2="744" y2="820" stroke="var(--signal)" stroke-width="1.6"/>
-        <line x1="744" y1="820" x2="744" y2="820" stroke="none"/>
+        <text x="713" y="276" text-anchor="middle" font-size="10" font-weight="600" fill="var(--signal)">SW1</text>
+        <line x1="726" y1="312" x2="744" y2="312" stroke="var(--signal)" stroke-width="1.8"/>
+        <text x="632" y="330" font-size="8.5" fill="var(--ink-dim)">botão de emergência (opcional, NA, 3&#8201;s — docs/12)</text>
+        <line x1="744" y1="312" x2="744" y2="820" stroke="var(--signal)" stroke-width="1.6"/>
 
         <!-- GPIO21/22 -> I2C -> DS3231 -->
         <line x1="580" y1="368" x2="620" y2="368" stroke="var(--bus)" stroke-width="1.8"/>
@@ -549,7 +549,7 @@
 
         </g>
       </svg>
-      <figcaption>Fig. 2 — Esquemático completo pino a pino. Rede de potência (vermelho) chaveada em nível alto lado pelo Q1; rede lógica (verde) isolada do lado de potência pelo PC817 (U1); barramento I2C (roxo) para o RTC DS3231. D2 deve ser montado fisicamente próximo à bomba/relé, fora do gabinete eletrônico — ver <span style="font-family:var(--font-mono)">docs/03</span>, Seção A.3.2.</figcaption>
+      <figcaption>Fig. 2 — Esquemático completo pino a pino. Rede de potência (vermelho) chaveada em nível alto lado pelo Q1; rede lógica (verde) isolada do lado de potência pelo PC817 (U1); barramento I2C (roxo) para o RTC DS3231. SW1 (GPIO32) é o botão de emergência opcional — libera a bomba sem NFC/BLE, segurado por 3&#8201;s, sem resistor externo (usa o pull-up interno do ESP32); não precisa de trilha dedicada na placa já roteada — ver <span style="font-family:var(--font-mono)">docs/12</span>. D2 deve ser montado fisicamente próximo à bomba/relé, fora do gabinete eletrônico — ver <span style="font-family:var(--font-mono)">docs/03</span>, Seção A.3.2.</figcaption>
     </figure>
 
     <div class="title-block">
