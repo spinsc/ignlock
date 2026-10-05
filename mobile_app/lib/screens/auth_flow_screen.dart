@@ -10,6 +10,7 @@ import '../services/nfc_service.dart';
 import '../services/sponsor_ads_service.dart';
 import '../services/sync_service.dart';
 import '../widgets/sponsor_ad_banner.dart';
+import '../services/driver_session_service.dart';
 import 'admin_config_screen.dart';
 
 enum _FlowStep { idle, scanningNfc, connectingBle, form, sending, done, error }
@@ -18,7 +19,10 @@ enum _FlowStep { idle, scanningNfc, connectingBle, form, sending, done, error }
 /// Condutor/KM/Destino -> enviar autenticação -> confirmar liberação.
 /// Ver docs/04-manual.md, Seção D.4 (Manual do Motorista).
 class AuthFlowScreen extends StatefulWidget {
-  const AuthFlowScreen({super.key});
+  final DriverSession session;
+  final VoidCallback onLogout;
+
+  const AuthFlowScreen({super.key, required this.session, required this.onLogout});
 
   @override
   State<AuthFlowScreen> createState() => _AuthFlowScreenState();
@@ -26,7 +30,6 @@ class AuthFlowScreen extends StatefulWidget {
 
 class _AuthFlowScreenState extends State<AuthFlowScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _driverController = TextEditingController();
   final _kmController = TextEditingController();
   final _destinationController = TextEditingController();
   int _validHours = 12; // seletor de validade (admin) — padrão da regra de negócio
@@ -55,7 +58,6 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
 
   @override
   void dispose() {
-    _driverController.dispose();
     _kmController.dispose();
     _destinationController.dispose();
     _bleService.disconnect();
@@ -144,14 +146,14 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
 
     try {
       await _bleService.sendAuth(
-        driverId: _driverController.text.trim(),
+        driverId: widget.session.driverCode,
         validHours: _validHours,
       );
 
       final now = DateTime.now();
       final log = TripLog(
         vehicleId: _vehicleTag!.vehicleId,
-        driverId: _driverController.text.trim(),
+        driverId: widget.session.driverCode,
         odometerKm: int.parse(_kmController.text.trim()),
         destination: _destinationController.text.trim(),
         validHours: _validHours,
@@ -174,7 +176,6 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   }
 
   void _reset() {
-    _driverController.clear();
     _kmController.clear();
     _destinationController.clear();
     _bleService.disconnect();
@@ -201,6 +202,11 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       appBar: AppBar(
         title: const Text('Liberação de Partida'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sair (${widget.session.fullName})',
+            onPressed: widget.onLogout,
+          ),
           // Só disponível com o veículo já conectado via BLE — a
           // configuração é protegida pelo PIN administrativo do próprio
           // ESP32 (ver AdminConfigScreen), não pelo login do app.
@@ -302,11 +308,8 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
             ),
           ],
           const SizedBox(height: 16),
-          TextFormField(
-            controller: _driverController,
-            decoration: const InputDecoration(labelText: 'Condutor (ID/Matrícula)'),
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
-          ),
+          Text('Condutor: ${widget.session.fullName} (${widget.session.driverCode})',
+              style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 12),
           TextFormField(
             controller: _kmController,

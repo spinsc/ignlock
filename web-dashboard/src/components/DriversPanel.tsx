@@ -11,6 +11,9 @@ export function DriversPanel() {
   const [showForm, setShowForm] = useState(false);
   const [importSummary, setImportSummary] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [withPin, setWithPin] = useState<Set<string>>(new Set());
+  const [pinFor, setPinFor] = useState<Driver | null>(null);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -20,7 +23,20 @@ export function DriversPanel() {
       .order('created_at', { ascending: false });
     if (error) setError(error.message);
     else setDrivers(data ?? []);
+    const pins = await supabase.rpc('admin_drivers_with_pin');
+    if (!pins.error) setWithPin(new Set((pins.data ?? []) as string[]));
     setLoading(false);
+  }
+
+  async function handleSetPin(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!pinFor) return;
+    setPinError(null);
+    const pin = String(new FormData(e.currentTarget).get('pin')).trim();
+    const { error } = await supabase.rpc('admin_set_driver_pin', { p_code: pinFor.driver_code, p_pin: pin });
+    if (error) { setPinError(error.message); return; }
+    setPinFor(null);
+    load();
   }
 
   useEffect(() => {
@@ -120,6 +136,7 @@ export function DriversPanel() {
               <th>Matrícula</th>
               <th>Nome</th>
               <th>Status</th>
+              <th>PIN do app</th>
             </tr>
           </thead>
           <tbody>
@@ -132,15 +149,38 @@ export function DriversPanel() {
                     {d.active ? 'ativo' : 'inativo'}
                   </button>
                 </td>
+                <td>
+                  <button className="ghost" onClick={() => { setPinError(null); setPinFor(d); }}>
+                    {withPin.has(d.driver_code) ? 'Trocar PIN' : 'Definir PIN'}
+                  </button>
+                  {!withPin.has(d.driver_code) && <span className="muted" style={{ padding: '0 0 0 8px', fontSize: 11 }}>sem acesso ao app</span>}
+                </td>
               </tr>
             ))}
             {drivers.length === 0 && (
               <tr>
-                <td colSpan={3} className="muted">Nenhum condutor cadastrado ainda.</td>
+                <td colSpan={4} className="muted">Nenhum condutor cadastrado ainda.</td>
               </tr>
             )}
           </tbody>
         </table>
+      )}
+
+      {pinFor && (
+        <div className="modal-backdrop" onClick={() => setPinFor(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>PIN do app — {pinFor.full_name}</h3>
+            <p>Entrada no app com a matrícula <b>{pinFor.driver_code}</b> + este PIN (4 a 8 dígitos). Após 5 erros a conta trava por 15 min; definir um novo PIN destrava.</p>
+            <form onSubmit={handleSetPin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4,8}" title="4 a 8 dígitos" placeholder="Novo PIN" autoComplete="new-password" required />
+              {pinError && <p className="form-error">{pinError}</p>}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="submit">Salvar PIN</button>
+                <button type="button" className="ghost" onClick={() => setPinFor(null)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </section>
   );

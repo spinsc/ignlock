@@ -120,12 +120,13 @@ TRUCK-042;AA:BB:CC:DD:EE:FF
 
 ### D.4.1 Uso Diário (primeira liberação do dia / após expirar a tolerância)
 
+0. **Primeiro acesso (uma vez):** entre com sua matrícula e o PIN que o administrador definiu no painel (aba Condutores → Definir PIN). Precisa de internet só nessa vez; depois o app lembra de você e a liberação funciona offline. 5 PINs errados bloqueiam a conta por 15 min. Para trocar de motorista no mesmo celular, use o ícone de sair.
 1. Abra o aplicativo da frota no celular.
 2. Toque em **"Aproximar do veículo"**.
 3. Aproxime o celular da tag NFC no painel (ícone NFC piscando na tela) até a leitura ser confirmada.
 4. Aguarde a conexão Bluetooth automática com o veículo (alguns segundos).
 5. Preencha o formulário:
-   - **Condutor** (seu ID/matrícula).
+   - **Condutor**: já vem do seu login (não é mais digitado).
    - **KM atual** (odômetro do painel).
    - **Destino** da viagem.
 6. Toque em **"Liberar partida"**.
