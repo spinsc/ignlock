@@ -24,7 +24,8 @@ void Storage::begin() {
 LockState Storage::loadState() {
     LockState s;
     prefs.begin(NVS_NAMESPACE, /*readOnly=*/true);
-    s.driverId       = prefs.getString(NVS_KEY_DRIVER_ID, "");
+    // getString() loga erro [E] quando a chave ainda nao existe (1o boot) -- checar antes.
+    s.driverId       = prefs.isKey(NVS_KEY_DRIVER_ID) ? prefs.getString(NVS_KEY_DRIVER_ID, "") : String("");
     s.releaseEpoch   = prefs.getUInt(NVS_KEY_RELEASE_EPOCH, 0);
     s.expireEpoch    = prefs.getUInt(NVS_KEY_EXPIRE_EPOCH, 0);
     s.toleranceHours = prefs.getUShort(NVS_KEY_TOLERANCE_HOURS, DEFAULT_TOLERANCE_HOURS);
@@ -64,7 +65,7 @@ void Storage::saveDefaultToleranceHours(uint16_t hours) {
 
 String Storage::loadAdminPin() {
     prefs.begin(NVS_NAMESPACE, true);
-    String pin = prefs.getString(NVS_KEY_ADMIN_PIN, DEFAULT_ADMIN_PIN);
+    String pin = prefs.isKey(NVS_KEY_ADMIN_PIN) ? prefs.getString(NVS_KEY_ADMIN_PIN, DEFAULT_ADMIN_PIN) : String(DEFAULT_ADMIN_PIN);
     prefs.end();
     return pin;
 }
