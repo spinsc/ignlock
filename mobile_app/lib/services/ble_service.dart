@@ -82,8 +82,34 @@ class BleService {
     await FlutterBluePlus.stopScan();
     await sub.cancel();
 
-    await device.connect(timeout: const Duration(seconds: 10));
+    // Erro 133 (ANDROID_SPECIFIC_ERROR) é a falha genérica do Android quando
+    // reconecta logo depois de soltar uma conexão, ou com o ESP32 ainda
+    // fechando a anterior: solta qualquer resíduo e tenta de novo.
+    Object? lastError;
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      try {
+        if (device.isConnected) await device.disconnect();
+        await Future.delayed(Duration(milliseconds: attempt == 1 ? 300 : 1500));
+        await device.connect(timeout: const Duration(seconds: 10));
+        lastError = null;
+        break;
+      } catch (e) {
+        lastError = e;
+        try {
+          await device.disconnect();
+        } catch (_) {}
+      }
+    }
+    if (lastError != null) {
+      throw Exception('Não foi possível conectar ao veículo (Bluetooth). Aproxime-se e tente de novo. ($lastError)');
+    }
     _device = device;
+
+    // O Android guarda em cache a lista de serviços por endereço: depois de
+    // atualizar o firmware, características novas (ex.: CONTROL) não apareciam.
+    try {
+      await device.clearGattCache();
+    } catch (_) {}
 
     final services = await device.discoverServices();
     final svc = services.firstWhere(
@@ -173,7 +199,9 @@ class BleService {
   }
 
   Future<void> disconnect() async {
-    await _device?.disconnect();
+    try {
+      await _device?.disconnect();
+    } catch (_) {}
     _device = null;
     _authChar = null;
     _statusChar = null;

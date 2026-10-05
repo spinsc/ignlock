@@ -96,6 +96,15 @@ export type SponsorAd = {
   created_at: string;
 };
 
+export type UsageSnapshot = {
+  vehicle_id: string;
+  driver_code: string;
+  released_at: string;
+  state: 'UNLOCKED' | 'PAUSED' | 'LOCKED';
+  remaining_seconds: number;
+  reported_at: string;
+};
+
 export type TripLog = {
   id: string;
   vehicle_id: string;

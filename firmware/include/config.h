@@ -30,7 +30,7 @@ static const gpio_num_t PIN_EMERGENCY_BTN = GPIO_NUM_32;
 // Cada veículo tem um VEHICLE_ID único gravado na tag NFC do painel
 // (ver docs/04-manual.md, Seção D.2). O app usa este ID para exibir/confirmar
 // o veículo antes de conectar via BLE (o MAC BLE também é gravado na tag).
-#define FIRMWARE_VERSION "1.1.0"
+#define FIRMWARE_VERSION "1.1.1"
 
 // ---- BLE GATT — UUIDs customizados (128-bit) ----
 // Gerados uma única vez para este projeto — não reutilizar em outros produtos.

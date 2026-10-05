@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/active_vehicle_store.dart';
 import '../services/ble_service.dart';
+import '../services/usage_report_service.dart';
 import '../services/driver_session_service.dart';
 
 /// Controle da partida: botão redondo vermelho (partida ligada → toque para
@@ -19,6 +20,7 @@ class VehicleControlScreen extends StatefulWidget {
 
 class _VehicleControlScreenState extends State<VehicleControlScreen> {
   final _ble = BleService();
+  final _usage = UsageReportService();
   StreamSubscription<LockStatusUpdate>? _sub;
   Timer? _timer;
 
@@ -47,6 +49,12 @@ class _VehicleControlScreenState extends State<VehicleControlScreen> {
 
   void _apply(LockStatusUpdate s) {
     if (!mounted) return;
+    _usage.report(
+      vehicleId: widget.vehicle.vehicleId,
+      driverCode: widget.session.driverCode,
+      releasedAtMs: widget.vehicle.releasedAtMs,
+      status: s,
+    );
     setState(() {
       _status = s;
       _statusAt = DateTime.now();

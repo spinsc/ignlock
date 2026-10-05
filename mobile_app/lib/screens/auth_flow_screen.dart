@@ -12,6 +12,7 @@ import '../services/sync_service.dart';
 import '../widgets/sponsor_ad_banner.dart';
 import '../services/driver_session_service.dart';
 import '../services/active_vehicle_store.dart';
+import '../services/usage_report_service.dart';
 import 'admin_config_screen.dart';
 import 'vehicle_control_screen.dart';
 
@@ -73,6 +74,7 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   }
 
   Future<void> _startFlow() async {
+    await _bleService.disconnect(); // o ESP32 aceita pouca conexão simultânea: nunca deixar uma pendurada
     setState(() {
       _step = _FlowStep.scanningNfc;
       _errorMessage = null;
@@ -168,9 +170,18 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
         expiresAt: now.add(Duration(hours: _validHours)),
       );
       await _dbService.insertTripLog(log);
-      final active = ActiveVehicle(_vehicleTag!.vehicleId, _vehicleTag!.bleMac);
+      final active = ActiveVehicle(
+          _vehicleTag!.vehicleId, _vehicleTag!.bleMac, now.millisecondsSinceEpoch, _validHours);
       await _activeStore.save(active);
       _active = active;
+      unawaited(UsageReportService().report(
+        vehicleId: active.vehicleId,
+        driverCode: widget.session.driverCode,
+        releasedAtMs: active.releasedAtMs,
+        status: LockStatusUpdate(
+            status: LockStatus.unlocked, driverId: widget.session.driverCode, remainingSeconds: _validHours * 3600),
+        force: true,
+      ));
 
       // Sincroniza em segundo plano — não bloqueia a confirmação ao
       // motorista, que já pode dar partida (fluxo é offline-first).

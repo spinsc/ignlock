@@ -23,7 +23,12 @@ static void setText(NimBLECharacteristic *chr, const char *text) {
 class ServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer *server, ble_gap_conn_desc *desc) override {
         s_deviceConnected = true;
-        Serial.println("[BLE] Cliente conectado.");
+        Serial.printf("[BLE] Cliente conectado (%u ativo(s)).\n", server->getConnectedCount());
+        // O NimBLE para de anunciar ao conectar: com folga para outra conexão,
+        // volta a anunciar (o app reconecta logo após soltar a anterior).
+        if (server->getConnectedCount() < CONFIG_BT_NIMBLE_MAX_CONNECTIONS) {
+            NimBLEDevice::startAdvertising();
+        }
     }
     void onDisconnect(NimBLEServer *server) override {
         s_deviceConnected = false;
@@ -203,6 +208,18 @@ void BleService::notifyEmergency() {
 }
 
 void BleService::loopHousekeeping() {
+    // Rede de segurança: se por qualquer motivo o anúncio parou e ainda há
+    // vaga de conexão, reinicia (visto como "veículo não encontrado" / erro 133
+    // no app quando o ESP32 deixava de anunciar depois de uma conexão).
+    static uint32_t lastCheckMs = 0;
+    if (s_server && millis() - lastCheckMs >= 3000) {
+        lastCheckMs = millis();
+        if (s_server->getConnectedCount() < CONFIG_BT_NIMBLE_MAX_CONNECTIONS &&
+            !NimBLEDevice::getAdvertising()->isAdvertising()) {
+            Serial.println("[BLE] Anuncio parado -- reiniciando.");
+            NimBLEDevice::startAdvertising();
+        }
+    }
     // Reservado para futura lógica de watchdog de conexão (ex.: forçar
     // re-advertising se ficar sem clientes por período anormalmente longo).
 }
