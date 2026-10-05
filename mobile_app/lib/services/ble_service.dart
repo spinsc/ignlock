@@ -60,27 +60,46 @@ class BleService {
   Stream<LockStatusUpdate> get statusStream =>
       (_statusController ??= StreamController<LockStatusUpdate>.broadcast()).stream;
 
-  /// Escaneia por MAC específico (lido da tag NFC) e conecta.
-  /// Timeout padrão de 15s é suficiente para o veículo estar "por perto".
-  Future<void> connectByMac(String macAddress, {Duration timeout = const Duration(seconds: 15)}) async {
-    final completer = Completer<BluetoothDevice>();
-    late StreamSubscription sub;
+  /// Localiza o veículo pelo MAC (lido da tag NFC), de três formas:
+  /// 1. conexão que o Android já mantém aberta com ele (app anterior fechado
+  ///    sem desconectar: nesse caso o ESP32 não anuncia e o scan não o vê);
+  /// 2. scan por MAC; 3. scan pelo nome anunciado (IGNLOCK-XXXX = fim do MAC).
+  Future<BluetoothDevice> _findDevice(String macAddress, Duration scanTime) async {
+    final mac = macAddress.toUpperCase();
+    final suffix = mac.replaceAll(':', '').substring(8);
 
-    await FlutterBluePlus.startScan(timeout: timeout);
-    sub = FlutterBluePlus.scanResults.listen((results) {
-      for (final r in results) {
-        if (r.device.remoteId.str.toUpperCase() == macAddress.toUpperCase()) {
-          if (!completer.isCompleted) completer.complete(r.device);
-        }
+    try {
+      for (final d in await FlutterBluePlus.systemDevices([GattUuids.service])) {
+        if (d.remoteId.str.toUpperCase() == mac) return d;
       }
-    });
+    } catch (_) {}
 
-    final device = await completer.future.timeout(timeout, onTimeout: () {
-      throw Exception('Dispositivo BLE $macAddress não encontrado. Verifique se está por perto.');
-    });
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      final completer = Completer<BluetoothDevice>();
+      final sub = FlutterBluePlus.scanResults.listen((results) {
+        for (final r in results) {
+          final byMac = r.device.remoteId.str.toUpperCase() == mac;
+          final byName = r.advertisementData.advName.toUpperCase() == 'IGNLOCK-$suffix';
+          if ((byMac || byName) && !completer.isCompleted) completer.complete(r.device);
+        }
+      });
+      try {
+        await FlutterBluePlus.stopScan();
+        await FlutterBluePlus.startScan(timeout: scanTime, androidScanMode: AndroidScanMode.lowLatency);
+        return await completer.future.timeout(scanTime);
+      } on TimeoutException {
+        // tenta de novo uma vez
+      } finally {
+        await sub.cancel();
+        await FlutterBluePlus.stopScan();
+      }
+    }
+    throw Exception('Veículo ($macAddress) não encontrado por Bluetooth. Fique perto dele, confirme que a '
+        'chave está ligada e o Bluetooth do celular ativo; se persistir, desligue e ligue o Bluetooth do celular.');
+  }
 
-    await FlutterBluePlus.stopScan();
-    await sub.cancel();
+  Future<void> connectByMac(String macAddress, {Duration timeout = const Duration(seconds: 12)}) async {
+    final device = await _findDevice(macAddress, timeout);
 
     // Erro 133 (ANDROID_SPECIFIC_ERROR) é a falha genérica do Android quando
     // reconecta logo depois de soltar uma conexão, ou com o ESP32 ainda
