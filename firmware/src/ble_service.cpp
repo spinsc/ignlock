@@ -9,6 +9,14 @@ static NimBLECharacteristic *s_statusChar = nullptr;
 static NimBLECharacteristic *s_emergencyChar = nullptr;
 static bool s_deviceConnected = false;
 
+// NimBLE-Arduino 1.4 não tem setValue(const char*): chamar setValue(str.c_str())
+// cai no template setValue<T>(const T&) e grava os 4 bytes do PONTEIRO (foi o
+// "94 8B FC 3F" lido no STATUS no teste de bancada), não o texto. Sempre
+// passar bytes + tamanho explícitos.
+static void setText(NimBLECharacteristic *chr, const char *text) {
+    chr->setValue(reinterpret_cast<const uint8_t *>(text), strlen(text));
+}
+
 // ---------------------------------------------------------------------------
 // Callbacks de conexão
 // ---------------------------------------------------------------------------
@@ -114,7 +122,7 @@ void BleService::begin(LockController *lockController, Storage *storage) {
     s_statusChar = svc->createCharacteristic(
         CHR_UUID_STATUS,
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-    s_statusChar->setValue(lockController_->statusPayload().c_str());
+    setText(s_statusChar, lockController_->statusPayload().c_str());
 
     NimBLECharacteristic *configChar = svc->createCharacteristic(
         CHR_UUID_CONFIG,
@@ -127,7 +135,7 @@ void BleService::begin(LockController *lockController, Storage *storage) {
     s_emergencyChar->setCallbacks(new EmergencyCallbacks(lockController_));
     char emgBuf[16];
     snprintf(emgBuf, sizeof(emgBuf), "EMG:%u", lockController_->pendingEmergencyEpoch());
-    s_emergencyChar->setValue(emgBuf);
+    setText(s_emergencyChar, emgBuf);
 
     svc->start();
 
@@ -142,7 +150,7 @@ void BleService::begin(LockController *lockController, Storage *storage) {
 void BleService::notifyStatus() {
     if (!s_statusChar) return;
     String payload = lockController_->statusPayload();
-    s_statusChar->setValue(payload.c_str());
+    setText(s_statusChar, payload.c_str());
     if (s_deviceConnected) {
         s_statusChar->notify();
     }
@@ -152,7 +160,7 @@ void BleService::notifyEmergency() {
     if (!s_emergencyChar) return;
     char buf[16];
     snprintf(buf, sizeof(buf), "EMG:%u", lockController_->pendingEmergencyEpoch());
-    s_emergencyChar->setValue(buf);
+    setText(s_emergencyChar, buf);
     if (s_deviceConnected) {
         s_emergencyChar->notify();
     }

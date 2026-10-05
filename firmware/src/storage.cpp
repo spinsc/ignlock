@@ -8,6 +8,17 @@ void Storage::begin() {
     // namespace aberto/fechado por chamada para minimizar risco de corrupção
     // em caso de queda de energia abrupta (comum: motorista desliga o carro
     // no meio de uma escrita). Preferences faz commit atômico por chave.
+    //
+    // Abrir em leitura/escrita UMA vez aqui cria o namespace na primeira
+    // gravação do firmware. Sem isso, os begin(readOnly=true) das leituras
+    // falham com "nvs_open failed: NOT_FOUND" até a primeira escrita (visto
+    // no teste de bancada). Os getters já devolvem o default nesse caso, mas o
+    // erro poluía o log e escondia falhas reais de NVS.
+    if (!prefs.begin(NVS_NAMESPACE, /*readOnly=*/false)) {
+        Serial.println("[NVS] ERRO: nao foi possivel abrir/criar o namespace (particao NVS ausente?).");
+        return;
+    }
+    prefs.end();
 }
 
 LockState Storage::loadState() {

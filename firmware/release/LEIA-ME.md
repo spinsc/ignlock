@@ -1,4 +1,4 @@
-# Firmware IGNLOCK v1.0.0 — pronto para gravar no ESP32
+# Firmware IGNLOCK v1.0.1 — pronto para gravar no ESP32
 
 Compilado de `firmware/` com PlatformIO (esp32dev, Arduino core). Inclui botão de
 emergência (GPIO32) e tolerância de emergência configurável (docs/12).
@@ -24,7 +24,7 @@ Só a aplicação (endereço 0x10000) — para regravar sem apagar bootloader/pa
 Só use em placa que já recebeu a imagem merged antes.
 
 ## Depois de gravar
-- Monitor serial a 115200: deve aparecer `[BOOT] Firmware v1.0.0` e `[BLE] Servico iniciado. Nome: IGNLOCK-XXXX`.
+- Monitor serial a 115200: deve aparecer `[BOOT] Firmware v1.0.1` e `[BLE] Servico iniciado. Nome: IGNLOCK-XXXX`.
 - O MAC BLE aparece no log serial — cadastre no painel (Veículos → Editar) e grave a tag NFC.
 - PIN administrativo de fábrica: `000000` (trocar na primeira configuração).
 - Sem DS3231 ligado o sistema permanece bloqueado (fail-safe) — comportamento esperado.
