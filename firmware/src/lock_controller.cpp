@@ -36,6 +36,15 @@ void LockController::begin(Storage *storage, RtcClock *rtc) {
 void LockController::tick() {
     if (!unlocked_) return; // já bloqueado, nada a reavaliar
 
+    if (emergencyNoClock_) {
+        // Diferença com sinal: correta mesmo com o overflow de millis() (~49 dias).
+        if ((int32_t)(millis() - emergencyEndMs_) >= 0) {
+            emergencyNoClock_ = false;
+            forceLockFailSafe("Janela de emergencia (sem RTC) expirou");
+        }
+        return;
+    }
+
     uint32_t now = rtc_->nowEpoch();
     if (now == 0 || now >= state_.expireEpoch) {
         forceLockFailSafe("Tolerancia expirou durante operacao");
@@ -77,6 +86,15 @@ bool LockController::handleAuthPayload(const String &payload) {
     // Sincroniza o RTC com o timestamp do celular (única fonte de tempo
     // real em operação 100% offline).
     rtc_->setEpoch(epoch);
+
+    // Uma liberação normal substitui qualquer emergência contada por millis().
+    // Se havia evento de emergência sem hora conhecida, agora dá para
+    // reconstruir o instante real: epoch atual menos o tempo decorrido.
+    if (emergencyNoClock_ && storage_->loadEmergencyPendingEpoch() == EMERGENCY_TIME_UNKNOWN) {
+        uint32_t elapsedS = (millis() - emergencyStartMs_) / 1000UL;
+        storage_->saveEmergencyPendingEpoch(epoch > elapsedS ? epoch - elapsedS : epoch);
+    }
+    emergencyNoClock_ = false;
 
     state_.driverId       = driverId;
     state_.releaseEpoch   = epoch;
@@ -170,24 +188,38 @@ bool LockController::pollEmergencyButton() {
 
 bool LockController::triggerEmergencyRelease() {
     uint32_t now = rtc_->nowEpoch();
-    if (now == 0) {
-        Serial.println("[EMERGENCY] RTC sem hora confiavel -- liberando mesmo assim, "
-                        "instante sera 0 ate proxima sincronizacao via app.");
-    }
 
     // Duracao configuravel pelo admin (característica CONFIG, ver
     // handleConfigPayload) -- cai no valor de fabrica se nunca configurada.
     uint16_t emgHours = storage_->loadEmergencyToleranceHours();
 
-    // Libera por uma janela curta -- e' uma saida de emergencia, nao um
-    // turno normal de uso. Assim que possivel, o motorista (ou o parceiro,
-    // ver driver_partners) deve autenticar normalmente via NFC/BLE.
     state_.driverId       = "EMERGENCY";
-    state_.releaseEpoch   = now;
-    state_.expireEpoch    = now + (uint32_t)emgHours * 3600UL;
     state_.toleranceHours = emgHours;
-    storage_->saveState(state_);
-    storage_->saveEmergencyPendingEpoch(now); // fica pendente ate o app confirmar (ACK) a sincronizacao
+
+    if (now == 0) {
+        // RTC sem hora confiavel (ex.: DS3231 perdeu energia): sem epoch nao
+        // ha como comparar expiracao. Conta a janela por millis() -- o
+        // controle nao pode relockar em 5s so porque o relogio esta zerado,
+        // senao o botao de emergencia falha justamente quando o RTC falha.
+        // Nada e persistido em state_ (reboot => fail-safe bloqueado).
+        state_.releaseEpoch = 0;
+        state_.expireEpoch  = 0;
+        emergencyNoClock_   = true;
+        emergencyStartMs_   = millis();
+        emergencyEndMs_     = emergencyStartMs_ + (uint32_t)emgHours * 3600000UL;
+        storage_->saveEmergencyPendingEpoch(EMERGENCY_TIME_UNKNOWN);
+        Serial.println("[EMERGENCY] RTC sem hora confiavel -- janela contada por millis(); "
+                       "instante real sera ajustado na proxima sincronizacao via app.");
+    } else {
+        // Libera por uma janela curta -- e' uma saida de emergencia, nao um
+        // turno normal de uso. Assim que possivel, o motorista (ou o parceiro,
+        // ver driver_partners) deve autenticar normalmente via NFC/BLE.
+        emergencyNoClock_ = false;
+        state_.releaseEpoch = now;
+        state_.expireEpoch  = now + (uint32_t)emgHours * 3600UL;
+        storage_->saveState(state_);
+        storage_->saveEmergencyPendingEpoch(now); // pendente ate o app confirmar (ACK)
+    }
 
     applyGpioState(true);
     Serial.printf("[EMERGENCY] Botao fisico segurado por >=%dms. Liberado por %uh. "

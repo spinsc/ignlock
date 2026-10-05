@@ -46,4 +46,11 @@ private:
 
     uint32_t   emergencyPressStartMs_ = 0; // 0 = botão solto
     bool       emergencyHandled_ = false;   // evita redisparo na mesma pressão
+
+    // Emergência com RTC sem hora válida: a janela é contada por millis()
+    // (não há epoch confiável para comparar). Não é persistida — se o ESP32
+    // reiniciar nesse estado, volta a bloquear (fail-safe).
+    bool       emergencyNoClock_ = false;
+    uint32_t   emergencyStartMs_ = 0;
+    uint32_t   emergencyEndMs_ = 0;
 };

@@ -152,3 +152,18 @@ status do restante do firmware do ESP32 de bloqueio (deferido nesta fase
 do projeto). Quando o firmware voltar ao escopo de bring-up, testar em
 conjunto: debounce do botão, tempo de resposta do BLE ao pressionar, e o
 ciclo completo sync→ACK com o app.
+
+### Emergência com o RTC sem hora válida (v1.0.2)
+
+Se o DS3231 estiver sem hora confiável (módulo novo, bateria fraca/sem
+bateria de backup), o botão **continua funcionando**: a janela é contada pelo
+`millis()` do ESP32 em vez de comparar epochs (antes, o controle relockava em
+até 5 s porque "hora zero" era tratada como tolerância expirada). Limites
+deliberados:
+
+- Essa janela **não é persistida**: se o ESP32 reiniciar durante ela (ex.:
+  queda de tensão na partida do motor), volta a bloquear — fail-safe.
+- O evento é gravado com instante desconhecido (`EMG:1`); na próxima
+  autenticação normal (que sincroniza o RTC) o firmware reconstrói o instante
+  real (hora atual menos o tempo decorrido). Se isso não acontecer antes do
+  app ler o evento, o app usa a hora da leitura (aproximada).

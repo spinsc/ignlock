@@ -101,9 +101,25 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       final epoch = await _bleService.readPendingEmergencyEpoch();
       if (epoch <= 0) return;
 
+      // epoch == 1: acionado com o RTC do ESP32 sem hora válida e ainda não
+      // corrigido (firmware: EMERGENCY_TIME_UNKNOWN). Usa a hora desta leitura
+      // — aproximada, mas melhor que 1970 — e evita duplicar se uma tentativa
+      // anterior de sincronizar ficou pendente.
+      final unknownTime = epoch == 1;
+      if (unknownTime) {
+        final pending = await _dbService.getPendingEmergencySync();
+        if (pending.any((e) => e.vehicleId == vehicleId)) {
+          await _syncService.syncPendingEmergency().then((n) async {
+            if (n > 0) await _bleService.ackEmergency();
+          });
+          return;
+        }
+      }
       final ev = EmergencyEvent(
         vehicleId: vehicleId,
-        triggeredAt: DateTime.fromMillisecondsSinceEpoch(epoch * 1000, isUtc: true),
+        triggeredAt: unknownTime
+            ? DateTime.now()
+            : DateTime.fromMillisecondsSinceEpoch(epoch * 1000, isUtc: true),
       );
       final id = await _dbService.insertEmergencyEventIfNew(ev);
       if (id != null) {
