@@ -105,6 +105,16 @@ void BleService::begin(LockController *lockController, Storage *storage) {
     snprintf(devName, sizeof(devName), "%s%02X%02X", BLE_DEVICE_NAME_PREFIX, mac[4], mac[5]);
 
     NimBLEDevice::init(devName);
+
+    // O app localiza o veículo pelo MAC gravado na tag NFC e cadastrado no
+    // painel, e esse MAC tem que ser exatamente o endereço BLE anunciado
+    // (o que o celular enxerga) — não o MAC Wi-Fi nem o da etiqueta do módulo.
+    // O manual prometia este valor no log de boot, mas ele nunca era impresso.
+    {
+        std::string addr = NimBLEDevice::getAddress().toString();
+        for (auto &c : addr) c = toupper(c);
+        Serial.printf("[BLE] MAC BLE (use na tag NFC e no painel): %s\n", addr.c_str());
+    }
     // Potência de transmissão moderada — suficiente para uso "aproxime o celular"
     // dentro do veículo, sem alcance excessivo fora dele.
     NimBLEDevice::setPower(ESP_PWR_LVL_N0);
