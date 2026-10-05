@@ -16,38 +16,58 @@ void LockController::begin(Storage *storage, RtcClock *rtc) {
 
     state_ = storage_->loadState();
 
-    uint32_t now = rtc_->nowEpoch();
-    if (now == 0) {
-        forceLockFailSafe("RTC sem hora confiavel no boot (aguardando sync BLE)");
-        return;
-    }
-
-    if (state_.expireEpoch > now && state_.driverId.length() > 0) {
-        // Ainda dentro da janela de tolerância de uma liberação anterior
-        // (o motorista desligou/ligou o veículo dentro das N horas).
-        Serial.printf("[LOCK] Restaurando liberacao valida ate epoch=%u (driver=%s)\n",
-                      state_.expireEpoch, state_.driverId.c_str());
+    // O saldo de uso é contado por millis() (não depende do RTC), então a
+    // restauração também não: chave desligada/ligada com saldo e sem pausa
+    // do motorista = continua liberado, retomando a contagem de onde parou.
+    if (state_.remainingSec > 0 && state_.driverId.length() > 0 && !state_.paused) {
+        Serial.printf("[LOCK] Restaurando liberacao: saldo=%us (driver=%s)\n",
+                      state_.remainingSec, state_.driverId.c_str());
         applyGpioState(true);
+        startCounting();
+    } else if (state_.paused && state_.remainingSec > 0) {
+        Serial.printf("[LOCK] Partida desativada pelo motorista (saldo=%us) -- aguardando RESUME.\n",
+                      state_.remainingSec);
+        forceLockFailSafe("Partida desativada pelo motorista (PAUSED)");
     } else {
-        forceLockFailSafe("Janela de tolerancia expirada ou sem liberacao anterior");
+        forceLockFailSafe("Sem saldo de tempo de uso ou sem liberacao anterior");
     }
 }
 
-void LockController::tick() {
-    if (!unlocked_) return; // já bloqueado, nada a reavaliar
+void LockController::startCounting() {
+    countStartMs_ = millis();
+    lastPersistMs_ = countStartMs_;
+}
 
-    if (emergencyNoClock_) {
-        // Diferença com sinal: correta mesmo com o overflow de millis() (~49 dias).
-        if ((int32_t)(millis() - emergencyEndMs_) >= 0) {
-            emergencyNoClock_ = false;
-            forceLockFailSafe("Janela de emergencia (sem RTC) expirou");
-        }
+void LockController::accountElapsed() {
+    if (!unlocked_) return;
+    uint32_t nowMs = millis();
+    uint32_t elapsedS = (nowMs - countStartMs_) / 1000UL; // aritmética sem sinal: segura no overflow
+    if (elapsedS == 0) return;
+    countStartMs_ += elapsedS * 1000UL; // preserva a fração de segundo
+    state_.remainingSec = (elapsedS >= state_.remainingSec) ? 0 : state_.remainingSec - elapsedS;
+}
+
+uint32_t LockController::remainingSeconds() const {
+    if (!unlocked_) return state_.remainingSec;
+    uint32_t elapsedS = (millis() - countStartMs_) / 1000UL;
+    return (elapsedS >= state_.remainingSec) ? 0 : state_.remainingSec - elapsedS;
+}
+
+void LockController::tick() {
+    if (!unlocked_) return; // bloqueado/pausado: saldo congelado
+
+    accountElapsed();
+
+    if (state_.remainingSec == 0) {
+        state_.paused = false;
+        storage_->saveCounter(0, false);
+        forceLockFailSafe("Saldo de tempo de uso esgotado");
         return;
     }
 
-    uint32_t now = rtc_->nowEpoch();
-    if (now == 0 || now >= state_.expireEpoch) {
-        forceLockFailSafe("Tolerancia expirou durante operacao");
+    if (millis() - lastPersistMs_ >= STATUS_COUNTER_PERSIST_MS) {
+        lastPersistMs_ = millis();
+        storage_->saveCounter(state_.remainingSec, false);
     }
 }
 
@@ -87,25 +107,66 @@ bool LockController::handleAuthPayload(const String &payload) {
     // real em operação 100% offline).
     rtc_->setEpoch(epoch);
 
-    // Uma liberação normal substitui qualquer emergência contada por millis().
-    // Se havia evento de emergência sem hora conhecida, agora dá para
-    // reconstruir o instante real: epoch atual menos o tempo decorrido.
-    if (emergencyNoClock_ && storage_->loadEmergencyPendingEpoch() == EMERGENCY_TIME_UNKNOWN) {
+    // Se havia evento de emergência com hora desconhecida, agora o RTC está
+    // certo: reconstrói o instante real (hora atual menos o tempo decorrido).
+    if (emergencyTimeUnknown_ && storage_->loadEmergencyPendingEpoch() == EMERGENCY_TIME_UNKNOWN) {
         uint32_t elapsedS = (millis() - emergencyStartMs_) / 1000UL;
         storage_->saveEmergencyPendingEpoch(epoch > elapsedS ? epoch - elapsedS : epoch);
     }
-    emergencyNoClock_ = false;
+    emergencyTimeUnknown_ = false;
 
+    // Nova liberação (NFC + formulário): saldo cheio de `hours` horas de USO.
     state_.driverId       = driverId;
     state_.releaseEpoch   = epoch;
-    state_.expireEpoch    = epoch + (uint32_t)hours * 3600UL;
+    state_.remainingSec   = (uint32_t)hours * 3600UL;
     state_.toleranceHours = hours;
+    state_.paused         = false;
     storage_->saveState(state_);
 
     applyGpioState(true);
-    Serial.printf("[AUTH] Liberado para %s ate epoch=%u (%uh)\n",
-                  driverId.c_str(), state_.expireEpoch, hours);
+    startCounting();
+    Serial.printf("[AUTH] Liberado para %s: saldo de uso=%uh\n", driverId.c_str(), hours);
     return true;
+}
+
+bool LockController::handleControlPayload(const String &payload) {
+    // Formato: PAUSE:<driver_id> | RESUME:<driver_id>
+    int sep = payload.indexOf(':');
+    if (sep <= 0) {
+        Serial.println("[CTRL] Payload malformado, ignorado.");
+        return false;
+    }
+    String cmd = payload.substring(0, sep);
+    String driverId = payload.substring(sep + 1);
+
+    // Só o motorista da liberação em curso comanda (soft check -- o canal BLE
+    // não é autenticado, igual ao AUTH). Liberação por emergência não tem
+    // motorista: aceita qualquer um.
+    if (state_.driverId != "EMERGENCY" && driverId != state_.driverId) {
+        Serial.println("[CTRL] Motorista diferente do titular da liberacao, ignorado.");
+        return false;
+    }
+
+    if (cmd == "PAUSE") {
+        if (!unlocked_) return false;
+        accountElapsed();
+        state_.paused = true;
+        storage_->saveCounter(state_.remainingSec, true);
+        applyGpioState(false);
+        Serial.printf("[CTRL] Partida DESATIVADA pelo motorista. Saldo preservado: %us\n", state_.remainingSec);
+        return true;
+    }
+    if (cmd == "RESUME") {
+        if (unlocked_ || !state_.paused || state_.remainingSec == 0) return false;
+        state_.paused = false;
+        storage_->saveCounter(state_.remainingSec, false);
+        applyGpioState(true);
+        startCounting();
+        Serial.printf("[CTRL] Partida REATIVADA. Saldo: %us\n", state_.remainingSec);
+        return true;
+    }
+    Serial.println("[CTRL] Comando desconhecido.");
+    return false;
 }
 
 bool LockController::handleConfigPayload(const String &payload, Storage *storage) {
@@ -150,13 +211,11 @@ bool LockController::handleConfigPayload(const String &payload, Storage *storage
 }
 
 String LockController::statusPayload() const {
-    // Formato simples e leve para BLE notify: LOCKED|UNLOCKED, driver, expiracao
+    // Formato leve para BLE: ESTADO|driver|saldo_seg|toleranciaH
+    const char *st = unlocked_ ? "UNLOCKED" : (state_.paused && state_.remainingSec > 0 ? "PAUSED" : "LOCKED");
     char buf[128];
-    snprintf(buf, sizeof(buf), "%s|%s|%u|%uh",
-             unlocked_ ? "UNLOCKED" : "LOCKED",
-             state_.driverId.c_str(),
-             state_.expireEpoch,
-             state_.toleranceHours);
+    snprintf(buf, sizeof(buf), "%s|%s|%u|%uh", st, state_.driverId.c_str(),
+             remainingSeconds(), state_.toleranceHours);
     return String(buf);
 }
 
@@ -189,40 +248,31 @@ bool LockController::pollEmergencyButton() {
 bool LockController::triggerEmergencyRelease() {
     uint32_t now = rtc_->nowEpoch();
 
-    // Duracao configuravel pelo admin (característica CONFIG, ver
-    // handleConfigPayload) -- cai no valor de fabrica se nunca configurada.
+    // Duracao configuravel pelo admin (característica CONFIG) -- é o saldo de
+    // uso da emergência, contado por millis() como qualquer liberação.
     uint16_t emgHours = storage_->loadEmergencyToleranceHours();
 
     state_.driverId       = "EMERGENCY";
+    state_.releaseEpoch   = now;
+    state_.remainingSec   = (uint32_t)emgHours * 3600UL;
     state_.toleranceHours = emgHours;
+    state_.paused         = false;
+    storage_->saveState(state_);
 
     if (now == 0) {
-        // RTC sem hora confiavel (ex.: DS3231 perdeu energia): sem epoch nao
-        // ha como comparar expiracao. Conta a janela por millis() -- o
-        // controle nao pode relockar em 5s so porque o relogio esta zerado,
-        // senao o botao de emergencia falha justamente quando o RTC falha.
-        // Nada e persistido em state_ (reboot => fail-safe bloqueado).
-        state_.releaseEpoch = 0;
-        state_.expireEpoch  = 0;
-        emergencyNoClock_   = true;
-        emergencyStartMs_   = millis();
-        emergencyEndMs_     = emergencyStartMs_ + (uint32_t)emgHours * 3600000UL;
+        // RTC sem hora: grava o evento com instante desconhecido; o instante
+        // real é reconstruído na próxima sincronização de hora via app.
+        emergencyTimeUnknown_ = true;
+        emergencyStartMs_ = millis();
         storage_->saveEmergencyPendingEpoch(EMERGENCY_TIME_UNKNOWN);
-        Serial.println("[EMERGENCY] RTC sem hora confiavel -- janela contada por millis(); "
-                       "instante real sera ajustado na proxima sincronizacao via app.");
     } else {
-        // Libera por uma janela curta -- e' uma saida de emergencia, nao um
-        // turno normal de uso. Assim que possivel, o motorista (ou o parceiro,
-        // ver driver_partners) deve autenticar normalmente via NFC/BLE.
-        emergencyNoClock_ = false;
-        state_.releaseEpoch = now;
-        state_.expireEpoch  = now + (uint32_t)emgHours * 3600UL;
-        storage_->saveState(state_);
+        emergencyTimeUnknown_ = false;
         storage_->saveEmergencyPendingEpoch(now); // pendente ate o app confirmar (ACK)
     }
 
     applyGpioState(true);
-    Serial.printf("[EMERGENCY] Botao fisico segurado por >=%dms. Liberado por %uh. "
+    startCounting();
+    Serial.printf("[EMERGENCY] Botao fisico segurado por >=%dms. Saldo de emergencia: %uh. "
                   "Evento pendente de sincronizacao/justificativa.\n",
                   EMERGENCY_HOLD_MS, emgHours);
     return true;

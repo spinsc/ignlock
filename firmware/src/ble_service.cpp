@@ -55,6 +55,27 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// Característica CONTROL (write) — PAUSE:<driver> | RESUME:<driver>
+// Desativa/reativa a partida preservando o saldo de tempo de uso.
+// ---------------------------------------------------------------------------
+class ControlCallbacks : public NimBLECharacteristicCallbacks {
+public:
+    explicit ControlCallbacks(LockController *lc) : lockController_(lc) {}
+
+    void onWrite(NimBLECharacteristic *chr) override {
+        std::string value = chr->getValue();
+        String payload = String(value.c_str());
+        Serial.printf("[BLE][CTRL] Payload recebido: %s\n", payload.c_str());
+        // Notifica sempre: o app precisa ver o estado resultante, aceito ou não.
+        lockController_->handleControlPayload(payload);
+        g_bleService.notifyStatus();
+    }
+
+private:
+    LockController *lockController_;
+};
+
+// ---------------------------------------------------------------------------
 // Característica CONFIG (write, admin) — CONFIG:HOURS:ADMIN_PIN
 // ---------------------------------------------------------------------------
 class ConfigCallbacks : public NimBLECharacteristicCallbacks {
@@ -138,6 +159,11 @@ void BleService::begin(LockController *lockController, Storage *storage) {
         CHR_UUID_CONFIG,
         NIMBLE_PROPERTY::WRITE);
     configChar->setCallbacks(new ConfigCallbacks(lockController_, storage_));
+
+    NimBLECharacteristic *controlChar = svc->createCharacteristic(
+        CHR_UUID_CONTROL,
+        NIMBLE_PROPERTY::WRITE);
+    controlChar->setCallbacks(new ControlCallbacks(lockController_));
 
     s_emergencyChar = svc->createCharacteristic(
         CHR_UUID_EMERGENCY,

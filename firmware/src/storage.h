@@ -7,8 +7,9 @@
 struct LockState {
     String   driverId;
     uint32_t releaseEpoch;   // epoch (s) da última liberação bem-sucedida
-    uint32_t expireEpoch;    // epoch (s) em que a tolerância expira
-    uint16_t toleranceHours; // janela configurada pelo admin
+    uint32_t remainingSec;   // saldo de TEMPO DE USO (s) -- só desconta com a partida liberada
+    uint16_t toleranceHours; // saldo inicial da liberação, em horas
+    bool     paused;         // motorista desativou a partida pelo app (saldo preservado)
 };
 
 class Storage {
@@ -18,6 +19,9 @@ public:
     LockState loadState();
     void saveState(const LockState &state);
     void clearState(); // força bloqueio (usado em logout/reset administrativo)
+    // Grava só o contador (saldo + pausa), barato o bastante para ser chamado
+    // a cada minuto enquanto a partida está liberada.
+    void saveCounter(uint32_t remainingSec, bool paused);
 
     uint16_t loadDefaultToleranceHours();
     void saveDefaultToleranceHours(uint16_t hours);

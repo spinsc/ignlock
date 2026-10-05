@@ -56,9 +56,8 @@ void loop() {
         g_bleService.notifyEmergency();
     }
 
-    // Reavalia expiração da tolerância a cada 5s (não precisa ser mais
-    // frequente — a janela é medida em horas).
-    if (now - lastTick >= 5000) {
+    // Desconta o saldo de tempo de uso e reavalia o esgotamento a cada 1s.
+    if (now - lastTick >= 1000) {
         lastTick = now;
         bool wasUnlockedTick = lockController.isUnlocked();
         lockController.tick();

@@ -10,28 +10,37 @@ class GattUuids {
   static final Guid status = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0003');
   static final Guid config = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0004');
   static final Guid emergency = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0005');
+  static final Guid control = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0006');
 }
 
-enum LockStatus { unknown, locked, unlocked }
+/// locked = bloqueado sem saldo (nova liberação NFC); paused = partida
+/// desativada pelo motorista, com saldo (pode religar); unlocked = liberada.
+enum LockStatus { unknown, locked, paused, unlocked }
 
 class LockStatusUpdate {
   final LockStatus status;
   final String driverId;
-  final DateTime? expiresAt;
+  final int remainingSeconds;
 
-  LockStatusUpdate({required this.status, required this.driverId, this.expiresAt});
+  LockStatusUpdate({required this.status, required this.driverId, this.remainingSeconds = 0});
 
-  /// Payload do firmware: "UNLOCKED|driverId|expireEpoch|12h"
+  /// Payload do firmware (v1.1): "ESTADO|driverId|saldo_seg|12h"
   factory LockStatusUpdate.parse(String raw) {
     final parts = raw.split('|');
     if (parts.length < 3) {
       return LockStatusUpdate(status: LockStatus.unknown, driverId: '');
     }
-    final status = parts[0] == 'UNLOCKED' ? LockStatus.unlocked : LockStatus.locked;
-    final driverId = parts[1];
-    final epoch = int.tryParse(parts[2]) ?? 0;
-    final expiresAt = epoch > 0 ? DateTime.fromMillisecondsSinceEpoch(epoch * 1000) : null;
-    return LockStatusUpdate(status: status, driverId: driverId, expiresAt: expiresAt);
+    final status = switch (parts[0]) {
+      'UNLOCKED' => LockStatus.unlocked,
+      'PAUSED' => LockStatus.paused,
+      'LOCKED' => LockStatus.locked,
+      _ => LockStatus.unknown,
+    };
+    return LockStatusUpdate(
+      status: status,
+      driverId: parts[1],
+      remainingSeconds: int.tryParse(parts[2]) ?? 0,
+    );
   }
 }
 
@@ -43,6 +52,9 @@ class BleService {
   BluetoothCharacteristic? _statusChar;
   BluetoothCharacteristic? _configChar;
   BluetoothCharacteristic? _emergencyChar;
+  BluetoothCharacteristic? _controlChar;
+
+  bool get isConnected => _device != null && _device!.isConnected;
 
   StreamController<LockStatusUpdate>? _statusController;
   Stream<LockStatusUpdate> get statusStream =>
@@ -84,6 +96,7 @@ class BleService {
       if (c.uuid == GattUuids.status) _statusChar = c;
       if (c.uuid == GattUuids.config) _configChar = c;
       if (c.uuid == GattUuids.emergency) _emergencyChar = c;
+      if (c.uuid == GattUuids.control) _controlChar = c;
     }
 
     if (_authChar == null || _statusChar == null) {
@@ -123,6 +136,22 @@ class BleService {
     await _configChar!.write(utf8.encode(payload), withoutResponse: false);
   }
 
+  /// Desativa ("PAUSE") ou reativa ("RESUME") a partida preservando o saldo
+  /// de tempo de uso. Exige firmware v1.1+ (característica CONTROL).
+  Future<void> sendControl(String command, String driverId) async {
+    if (_controlChar == null) {
+      throw Exception('Este veículo está com firmware antigo (sem controle de partida). Atualize o ESP32.');
+    }
+    await _controlChar!.write(utf8.encode('$command:$driverId'), withoutResponse: false);
+  }
+
+  /// Lê o estado atual direto da característica STATUS.
+  Future<LockStatusUpdate> readStatus() async {
+    if (_statusChar == null) throw Exception('Não conectado ao dispositivo.');
+    final bytes = await _statusChar!.read();
+    return LockStatusUpdate.parse(utf8.decode(bytes));
+  }
+
   /// Lê o instante (epoch, ou 0 se não houver) do último acionamento do
   /// botão físico de emergência ainda não confirmado (ver docs/12 e
   /// firmware/src/lock_controller.cpp). Retorna 0 em veículos com firmware
@@ -150,6 +179,7 @@ class BleService {
     _statusChar = null;
     _configChar = null;
     _emergencyChar = null;
+    _controlChar = null;
   }
 
   void dispose() {

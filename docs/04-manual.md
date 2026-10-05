@@ -133,15 +133,17 @@ TRUCK-042;AA:BB:CC:DD:EE:FF
 7. Aguarde a confirmação verde ("Liberado por N horas") — o LED de status no gabinete instalado no veículo também deve acender **verde**.
 8. Dê a partida normalmente.
 
-### D.4.2 Durante a Janela de Tolerância
+### D.4.2 Tempo de uso e botão ligar/desligar
 
-- Se você desligar e ligar o veículo novamente **dentro da janela configurada** (ex. 12 horas), a bomba permanece liberada automaticamente — **não é necessário repetir o procedimento NFC/BLE**.
-- O LED de status permanece **verde** enquanto a liberação estiver válida.
+- O tempo liberado (ex.: 12 h) é um **saldo de tempo de uso**: só desconta enquanto a partida está **ligada**. Ficar horas com o veículo desligado — pelo botão do app ou com a chave desligada — **não consome** saldo. Ex.: 12 h de saldo, 1 h ligado e 10 h desligado = ainda restam 11 h.
+- Depois da liberação, o app abre o **controle da partida**: botão redondo **vermelho** = partida ligada (toque para **desligar**); botão **verde** = partida desligada (toque para **ligar** de novo). O saldo restante aparece em horas:minutos:segundos. Também fica acessível na tela inicial ("Ligar/desligar partida"). Precisa estar perto do veículo (Bluetooth).
+- Desligar pelo botão bloqueia a bomba e congela o saldo; ligar de novo não exige NFC nem formulário.
+- Com a chave desligada o ESP32 fica sem energia e não conta; ao ligar a chave com saldo, a partida volta ligada (a menos que você a tenha desligado pelo botão). Por limite do armazenamento, até 1 min de uso antes de a chave ser desligada pode não ser descontado.
+- LED **verde** = ligada; **vermelho** = bloqueada ou desligada pelo botão.
 
-### D.4.3 Quando a Tolerância Expira
+### D.4.3 Quando o Saldo Acaba
 
-- Passadas as N horas desde a última liberação, o sistema bloqueia automaticamente a bomba (LED muda para **vermelho**).
-- Repita o procedimento da Seção D.4.1 para liberar novamente.
+- Zerado o saldo, o sistema bloqueia a bomba (LED vermelho) e o botão do app deixa de religar. Repita a Seção D.4.1 (NFC + formulário) para uma nova liberação.
 
 ### D.4.4 Boas Práticas
 

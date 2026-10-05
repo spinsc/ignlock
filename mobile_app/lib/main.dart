@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
 import 'screens/auth_flow_screen.dart';
 import 'screens/login_screen.dart';
+import 'services/active_vehicle_store.dart';
 import 'services/driver_session_service.dart';
 
 Future<void> main() async {
@@ -66,6 +67,7 @@ class _SessionGateState extends State<_SessionGate> {
 
   Future<void> _logout() async {
     await _service.logout();
+    await ActiveVehicleStore().clear(); // o veículo ativo pertence ao motorista que saiu
     if (mounted) setState(() => _session = null);
   }
 

@@ -30,14 +30,16 @@ static const gpio_num_t PIN_EMERGENCY_BTN = GPIO_NUM_32;
 // Cada veículo tem um VEHICLE_ID único gravado na tag NFC do painel
 // (ver docs/04-manual.md, Seção D.2). O app usa este ID para exibir/confirmar
 // o veículo antes de conectar via BLE (o MAC BLE também é gravado na tag).
-#define FIRMWARE_VERSION "1.0.4"
+#define FIRMWARE_VERSION "1.1.0"
 
 // ---- BLE GATT — UUIDs customizados (128-bit) ----
 // Gerados uma única vez para este projeto — não reutilizar em outros produtos.
 #define SVC_UUID_IGNITION_LOCK   "8f6a0001-b5a3-4393-e0a9-e50e24dc0001"
-#define CHR_UUID_AUTH            "8f6a0001-b5a3-4393-e0a9-e50e24dc0002" // Write: DRIVER_ID:VALID_HOURS:EPOCH
-#define CHR_UUID_STATUS          "8f6a0001-b5a3-4393-e0a9-e50e24dc0003" // Read/Notify: status atual
+#define CHR_UUID_AUTH            "8f6a0001-b5a3-4393-e0a9-e50e24dc0002" // Write: DRIVER_ID:VALID_HOURS:EPOCH (VALID_HOURS = saldo de horas de USO)
+#define CHR_UUID_STATUS          "8f6a0001-b5a3-4393-e0a9-e50e24dc0003" // Read/Notify: ESTADO|driver|saldo_seg|Nh  (ESTADO = LOCKED|UNLOCKED|PAUSED)
 #define CHR_UUID_CONFIG          "8f6a0001-b5a3-4393-e0a9-e50e24dc0004" // Write (admin): CONFIG:HOURS:EMERGENCY_HOURS:PIN
+#define STATUS_COUNTER_PERSIST_MS 60000 // grava o saldo em NVS a cada 1 min com a partida liberada
+#define CHR_UUID_CONTROL         "8f6a0001-b5a3-4393-e0a9-e50e24dc0006" // Write: PAUSE:<driver> | RESUME:<driver>
 #define CHR_UUID_EMERGENCY       "8f6a0001-b5a3-4393-e0a9-e50e24dc0005" // Read/Notify: "EMG:<epoch|0>" · Write "ACK" confirma sync
 
 // ---- Regras de negócio ----
@@ -65,7 +67,8 @@ static const gpio_num_t PIN_EMERGENCY_BTN = GPIO_NUM_32;
 // ---- Persistência NVS (Preferences) ----
 #define NVS_NAMESPACE             "ignlock"
 #define NVS_KEY_DRIVER_ID         "driver_id"
-#define NVS_KEY_EXPIRE_EPOCH      "expire_ts"
+#define NVS_KEY_REMAINING_SEC     "rem_s"    // saldo de tempo de uso (s)
+#define NVS_KEY_PAUSED            "paused"   // partida desativada pelo motorista
 #define NVS_KEY_RELEASE_EPOCH     "release_ts"
 #define NVS_KEY_TOLERANCE_HOURS   "tol_hours"
 #define NVS_KEY_ADMIN_PIN         "admin_pin"

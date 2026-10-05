@@ -11,7 +11,9 @@ import '../services/sponsor_ads_service.dart';
 import '../services/sync_service.dart';
 import '../widgets/sponsor_ad_banner.dart';
 import '../services/driver_session_service.dart';
+import '../services/active_vehicle_store.dart';
 import 'admin_config_screen.dart';
+import 'vehicle_control_screen.dart';
 
 enum _FlowStep { idle, scanningNfc, connectingBle, form, sending, done, error }
 
@@ -45,10 +47,15 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   VehicleTag? _vehicleTag;
   bool _emergencyPendingWasSynced = false; // mostra aviso não-bloqueante no formulário
   SponsorAd? _sponsorAd; // exibido de forma discreta só na tela inicial (idle)
+  final _activeStore = ActiveVehicleStore();
+  ActiveVehicle? _active; // último veículo liberado: atalho para o controle da partida
 
   @override
   void initState() {
     super.initState();
+    _activeStore.load().then((v) {
+      if (mounted) setState(() => _active = v);
+    });
     // Melhor esforço, nunca bloqueia nem falha a tela — é conteúdo
     // secundário (ver SponsorAdsService.fetchOne).
     _sponsorAdsService.fetchOne().then((ad) {
@@ -161,6 +168,9 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
         expiresAt: now.add(Duration(hours: _validHours)),
       );
       await _dbService.insertTripLog(log);
+      final active = ActiveVehicle(_vehicleTag!.vehicleId, _vehicleTag!.bleMac);
+      await _activeStore.save(active);
+      _active = active;
 
       // Sincroniza em segundo plano — não bloqueia a confirmação ao
       // motorista, que já pode dar partida (fluxo é offline-first).
@@ -173,6 +183,19 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
         _errorMessage = e.toString();
       });
     }
+  }
+
+  /// Abre o controle da partida (botão ligar/desligar). O ESP32 aceita uma
+  /// conexão BLE por vez, então solta a desta tela antes de abrir a outra.
+  Future<void> _openControl() async {
+    final v = _active;
+    if (v == null) return;
+    await _bleService.disconnect();
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => VehicleControlScreen(session: widget.session, vehicle: v)),
+    );
+    if (mounted) _reset();
   }
 
   void _reset() {
@@ -257,6 +280,14 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
                 const Text('Toque para iniciar a liberação', textAlign: TextAlign.center),
                 const SizedBox(height: 24),
                 FilledButton(onPressed: _startFlow, child: const Text('Aproximar do veículo')),
+                if (_active != null) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _openControl,
+                    icon: const Icon(Icons.power_settings_new),
+                    label: Text('Ligar/desligar partida — ${_active!.vehicleId}'),
+                  ),
+                ],
               ],
             ),
           ),
@@ -331,7 +362,7 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
           const SizedBox(height: 12),
           DropdownButtonFormField<int>(
             value: _validHours,
-            decoration: const InputDecoration(labelText: 'Validade da liberação (tolerância)'),
+            decoration: const InputDecoration(labelText: 'Tempo de uso liberado (horas)'),
             items: const [4, 8, 12, 24, 48]
                 .map((h) => DropdownMenuItem(value: h, child: Text('$h horas')))
                 .toList(),
@@ -351,9 +382,17 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
         children: [
           const Icon(Icons.check_circle, size: 96, color: Colors.green),
           const SizedBox(height: 16),
-          Text('Liberado por $_validHours horas.', textAlign: TextAlign.center),
+          Text('Liberado: $_validHours horas de uso.', textAlign: TextAlign.center),
+          const SizedBox(height: 4),
+          const Text('O tempo só desconta com a partida ligada.', textAlign: TextAlign.center),
           const SizedBox(height: 24),
-          FilledButton(onPressed: _reset, child: const Text('Concluir')),
+          FilledButton.icon(
+            onPressed: _openControl,
+            icon: const Icon(Icons.power_settings_new),
+            label: const Text('Abrir controle da partida'),
+          ),
+          const SizedBox(height: 8),
+          TextButton(onPressed: _reset, child: const Text('Concluir')),
         ],
       ),
     );

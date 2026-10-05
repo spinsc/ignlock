@@ -27,7 +27,8 @@ LockState Storage::loadState() {
     // getString() loga erro [E] quando a chave ainda nao existe (1o boot) -- checar antes.
     s.driverId       = prefs.isKey(NVS_KEY_DRIVER_ID) ? prefs.getString(NVS_KEY_DRIVER_ID, "") : String("");
     s.releaseEpoch   = prefs.getUInt(NVS_KEY_RELEASE_EPOCH, 0);
-    s.expireEpoch    = prefs.getUInt(NVS_KEY_EXPIRE_EPOCH, 0);
+    s.remainingSec   = prefs.getUInt(NVS_KEY_REMAINING_SEC, 0);
+    s.paused         = prefs.getBool(NVS_KEY_PAUSED, false);
     s.toleranceHours = prefs.getUShort(NVS_KEY_TOLERANCE_HOURS, DEFAULT_TOLERANCE_HOURS);
     prefs.end();
     return s;
@@ -37,7 +38,8 @@ void Storage::saveState(const LockState &state) {
     prefs.begin(NVS_NAMESPACE, /*readOnly=*/false);
     prefs.putString(NVS_KEY_DRIVER_ID, state.driverId);
     prefs.putUInt(NVS_KEY_RELEASE_EPOCH, state.releaseEpoch);
-    prefs.putUInt(NVS_KEY_EXPIRE_EPOCH, state.expireEpoch);
+    prefs.putUInt(NVS_KEY_REMAINING_SEC, state.remainingSec);
+    prefs.putBool(NVS_KEY_PAUSED, state.paused);
     prefs.putUShort(NVS_KEY_TOLERANCE_HOURS, state.toleranceHours);
     prefs.end();
 }
@@ -46,7 +48,15 @@ void Storage::clearState() {
     prefs.begin(NVS_NAMESPACE, /*readOnly=*/false);
     prefs.putString(NVS_KEY_DRIVER_ID, "");
     prefs.putUInt(NVS_KEY_RELEASE_EPOCH, 0);
-    prefs.putUInt(NVS_KEY_EXPIRE_EPOCH, 0);
+    prefs.putUInt(NVS_KEY_REMAINING_SEC, 0);
+    prefs.putBool(NVS_KEY_PAUSED, false);
+    prefs.end();
+}
+
+void Storage::saveCounter(uint32_t remainingSec, bool paused) {
+    prefs.begin(NVS_NAMESPACE, false);
+    prefs.putUInt(NVS_KEY_REMAINING_SEC, remainingSec);
+    prefs.putBool(NVS_KEY_PAUSED, paused);
     prefs.end();
 }
 
