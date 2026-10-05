@@ -11,3 +11,6 @@ build/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# APKs vão para GitHub Releases, não para o repositório
+*.apk
