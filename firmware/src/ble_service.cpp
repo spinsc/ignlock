@@ -60,6 +60,24 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// Característica STATUS (read/notify): o valor guardado só era regravado quando
+// o estado mudava (notifyStatus), então uma LEITURA devolvia um saldo velho —
+// no app, o contador "voltava ao tempo máximo" a cada releitura. Agora toda
+// leitura recalcula o payload na hora.
+// ---------------------------------------------------------------------------
+class StatusCallbacks : public NimBLECharacteristicCallbacks {
+public:
+    explicit StatusCallbacks(LockController *lc) : lockController_(lc) {}
+
+    void onRead(NimBLECharacteristic *chr) override {
+        setText(chr, lockController_->statusPayload().c_str());
+    }
+
+private:
+    LockController *lockController_;
+};
+
+// ---------------------------------------------------------------------------
 // Característica CONTROL (write) — PAUSE:<driver> | RESUME:<driver>
 // Desativa/reativa a partida preservando o saldo de tempo de uso.
 // ---------------------------------------------------------------------------
@@ -159,6 +177,7 @@ void BleService::begin(LockController *lockController, Storage *storage) {
         CHR_UUID_STATUS,
         NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
     setText(s_statusChar, lockController_->statusPayload().c_str());
+    s_statusChar->setCallbacks(new StatusCallbacks(lockController_));
 
     NimBLECharacteristic *configChar = svc->createCharacteristic(
         CHR_UUID_CONFIG,
