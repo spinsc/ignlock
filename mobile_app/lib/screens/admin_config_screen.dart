@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/ble_service.dart';
+import '../services/tenant_context.dart';
 
 /// Configuração administrativa do veículo já conectado por BLE: tolerância
 /// padrão (janela normal de liberação) e tolerância do botão de emergência
@@ -19,8 +20,14 @@ class AdminConfigScreen extends StatefulWidget {
 class _AdminConfigScreenState extends State<AdminConfigScreen> {
   final _formKey = GlobalKey<FormState>();
   final _pinController = TextEditingController();
-  int _hours = 12; // deve bater com DEFAULT_TOLERANCE_HOURS em firmware/include/config.h
-  int _emergencyHours = 1; // deve bater com EMERGENCY_TOLERANCE_HOURS
+  late int _hours = AppTenant.settings.defaultValidityHours.clamp(1, 48);
+  // Opções de emergência respeitam o teto definido pela empresa no painel (Parâmetros).
+  late final List<int> _emergencyOptions =
+      [1, 2, 4, 6].where((h) => h <= AppTenant.settings.emergencyMaxHours).toList().isEmpty
+          ? [1]
+          : [1, 2, 4, 6].where((h) => h <= AppTenant.settings.emergencyMaxHours).toList();
+  late int _emergencyHours =
+      _emergencyOptions.contains(AppTenant.settings.emergencyDefaultHours) ? AppTenant.settings.emergencyDefaultHours : _emergencyOptions.first;
 
   bool _saving = false;
   String? _message;
@@ -30,6 +37,41 @@ class _AdminConfigScreenState extends State<AdminConfigScreen> {
   void dispose() {
     _pinController.dispose();
     super.dispose();
+  }
+
+  /// Libera o veículo à força (motorista esqueceu de desvincular ou perdeu o
+  /// celular). Protegido pelo PIN administrativo do próprio ESP32.
+  Future<void> _forceUnbind() async {
+    if (_pinController.text.trim().isEmpty) {
+      setState(() {
+        _message = 'Informe o PIN administrativo do veículo.';
+        _messageIsError = true;
+      });
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _message = null;
+    });
+    try {
+      await widget.bleService.sendAdminUnbind(_pinController.text.trim());
+      await Future.delayed(const Duration(milliseconds: 400));
+      final st = await widget.bleService.readStatus();
+      final ok = st.driverId.isEmpty;
+      setState(() {
+        _message = ok
+            ? 'Veículo liberado: nenhum motorista vinculado.'
+            : 'O veículo recusou (PIN incorreto?). Vinculado a ${st.driverId}.';
+        _messageIsError = !ok;
+      });
+    } catch (e) {
+      setState(() {
+        _message = 'Falha ao enviar: $e';
+        _messageIsError = true;
+      });
+    } finally {
+      setState(() => _saving = false);
+    }
   }
 
   Future<void> _save() async {
@@ -90,7 +132,7 @@ class _AdminConfigScreenState extends State<AdminConfigScreen> {
                   helperText: 'Janela curta de propósito — não é para uso diário.',
                   helperMaxLines: 2,
                 ),
-                items: const [1, 2, 4, 6]
+                items: _emergencyOptions
                     .map((h) => DropdownMenuItem(value: h, child: Text('$h hora${h == 1 ? '' : 's'}')))
                     .toList(),
                 onChanged: (v) => setState(() => _emergencyHours = v ?? _emergencyHours),
@@ -114,6 +156,12 @@ class _AdminConfigScreenState extends State<AdminConfigScreen> {
               FilledButton(
                 onPressed: _saving ? null : _save,
                 child: _saving ? const CircularProgressIndicator() : const Text('Salvar configuração'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _forceUnbind,
+                icon: const Icon(Icons.link_off),
+                label: const Text('Liberar veículo (desvincular motorista)'),
               ),
             ],
           ),

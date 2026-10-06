@@ -9,6 +9,7 @@ class TripLog {
   final int validHours;
   final DateTime releasedAt;
   final DateTime expiresAt;
+  final String odometerSource; // 'manual' | 'obd'
   bool synced;
 
   TripLog({
@@ -20,6 +21,7 @@ class TripLog {
     required this.validHours,
     required this.releasedAt,
     required this.expiresAt,
+    this.odometerSource = 'manual',
     this.synced = false,
   });
 
@@ -33,6 +35,7 @@ class TripLog {
       'valid_hours': validHours,
       'released_at': releasedAt.millisecondsSinceEpoch,
       'expires_at': expiresAt.millisecondsSinceEpoch,
+      'odometer_source': odometerSource,
       'synced': synced ? 1 : 0,
     };
   }
@@ -47,6 +50,7 @@ class TripLog {
       validHours: map['valid_hours'] as int,
       releasedAt: DateTime.fromMillisecondsSinceEpoch(map['released_at'] as int),
       expiresAt: DateTime.fromMillisecondsSinceEpoch(map['expires_at'] as int),
+      odometerSource: (map['odometer_source'] as String?) ?? 'manual',
       synced: (map['synced'] as int) == 1,
     );
   }

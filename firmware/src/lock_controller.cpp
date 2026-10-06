@@ -80,12 +80,16 @@ bool LockController::handleAuthPayload(const String &payload) {
         return false;
     }
 
+    int sep3 = payload.indexOf(':', sep2 + 1);
+
     String driverId   = payload.substring(0, sep1);
     String hoursStr    = payload.substring(sep1 + 1, sep2);
-    String epochStr    = payload.substring(sep2 + 1);
+    String epochStr    = (sep3 > 0) ? payload.substring(sep2 + 1, sep3) : payload.substring(sep2 + 1);
+    String budgetStr   = (sep3 > 0) ? payload.substring(sep3 + 1) : String("");
 
     long hoursLong = hoursStr.toInt();
     long epochLong = epochStr.toInt();
+    long budgetLong = budgetStr.toInt(); // 0 = sem crédito: saldo = hoursLong horas
 
     if (driverId.length() == 0 || driverId.length() > 64) {
         Serial.println("[AUTH] DRIVER_ID invalido.");
@@ -97,6 +101,20 @@ bool LockController::handleAuthPayload(const String &payload) {
     }
     if (epochLong <= 0) {
         Serial.println("[AUTH] EPOCH_TIMESTAMP invalido.");
+        return false;
+    }
+
+    if (budgetStr.length() > 0 && (budgetLong < 60 || budgetLong > (long)MAX_TOLERANCE_HOURS * 3600L)) {
+        Serial.println("[AUTH] SALDO_SEG fora da faixa permitida.");
+        return false;
+    }
+
+    // Exclusividade: enquanto um motorista está vinculado e ainda tem saldo,
+    // nenhum outro obtém nova liberação. O parceiro não cria liberação: opera
+    // o saldo do titular pela característica CONTROL (PAUSE/RESUME).
+    if (holderActive() && driverId != state_.driverId) {
+        Serial.printf("[AUTH] Veiculo vinculado a %s (saldo=%us) -- liberacao de %s recusada.\n",
+                      state_.driverId.c_str(), remainingSeconds(), driverId.c_str());
         return false;
     }
 
@@ -118,7 +136,7 @@ bool LockController::handleAuthPayload(const String &payload) {
     // Nova liberação (NFC + formulário): saldo cheio de `hours` horas de USO.
     state_.driverId       = driverId;
     state_.releaseEpoch   = epoch;
-    state_.remainingSec   = (uint32_t)hours * 3600UL;
+    state_.remainingSec   = (budgetStr.length() > 0) ? (uint32_t)budgetLong : (uint32_t)hours * 3600UL;
     state_.toleranceHours = hours;
     state_.paused         = false;
     storage_->saveState(state_);
@@ -130,21 +148,35 @@ bool LockController::handleAuthPayload(const String &payload) {
 }
 
 bool LockController::handleControlPayload(const String &payload) {
-    // Formato: PAUSE:<driver_id> | RESUME:<driver_id>
+    // Formato: PAUSE|RESUME|UNBIND:<driver_id>[:<titular>]
+    // <titular> = motorista PARCEIRO operando em nome do titular da liberação
+    // (o app confere o vínculo no servidor; aqui é soft check, igual ao AUTH).
     int sep = payload.indexOf(':');
     if (sep <= 0) {
         Serial.println("[CTRL] Payload malformado, ignorado.");
         return false;
     }
     String cmd = payload.substring(0, sep);
-    String driverId = payload.substring(sep + 1);
+    String rest = payload.substring(sep + 1);
+    int sep2 = rest.indexOf(':');
+    String driverId = (sep2 >= 0) ? rest.substring(0, sep2) : rest;
+    String actingFor = (sep2 >= 0) ? rest.substring(sep2 + 1) : String("");
 
-    // Só o motorista da liberação em curso comanda (soft check -- o canal BLE
-    // não é autenticado, igual ao AUTH). Liberação por emergência não tem
-    // motorista: aceita qualquer um.
-    if (state_.driverId != "EMERGENCY" && driverId != state_.driverId) {
+    bool isHolder = (driverId == state_.driverId);
+    bool isPartner = (actingFor.length() > 0 && actingFor == state_.driverId && driverId.length() > 0);
+    bool isEmergency = (state_.driverId == "EMERGENCY");
+    if (!(isHolder || isPartner || isEmergency)) {
         Serial.println("[CTRL] Motorista diferente do titular da liberacao, ignorado.");
         return false;
+    }
+
+    if (cmd == "UNBIND") {
+        // Só o próprio titular (ou emergência) encerra o vínculo; parceiro não.
+        if (!(isHolder || isEmergency) || isPartner) return false;
+        accountElapsed();
+        Serial.printf("[CTRL] Vinculo de %s encerrado (saldo restante=%us).\n", state_.driverId.c_str(), state_.remainingSec);
+        clearBinding();
+        return true;
     }
 
     if (cmd == "PAUSE") {
@@ -169,7 +201,33 @@ bool LockController::handleControlPayload(const String &payload) {
     return false;
 }
 
+bool LockController::holderActive() const {
+    return state_.driverId.length() > 0 && state_.driverId != "EMERGENCY" && remainingSeconds() > 0;
+}
+
+void LockController::clearBinding() {
+    state_.driverId = "";
+    state_.releaseEpoch = 0;
+    state_.remainingSec = 0;
+    state_.paused = false;
+    storage_->saveState(state_);
+    applyGpioState(false);
+}
+
+bool LockController::adminUnbind(const String &pin) {
+    if (pin != storage_->loadAdminPin()) {
+        Serial.println("[CONFIG] PIN administrativo incorreto (UNBIND_ADMIN).");
+        return false;
+    }
+    Serial.printf("[CONFIG] Vinculo de %s liberado pelo administrador.\n", state_.driverId.c_str());
+    clearBinding();
+    return true;
+}
+
 bool LockController::handleConfigPayload(const String &payload, Storage *storage) {
+    if (payload.startsWith("UNBIND_ADMIN:")) {
+        return adminUnbind(payload.substring(13));
+    }
     // Formato: CONFIG:HOURS:EMERGENCY_HOURS:PIN
     // (EMERGENCY_HOURS configura a duração do botão de emergência opcional
     // -- ver docs/12 -- dentro de um teto próprio, mais baixo que o da

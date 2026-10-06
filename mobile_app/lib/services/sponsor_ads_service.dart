@@ -9,6 +9,18 @@ import '../models/sponsor_ad.dart';
 class SponsorAdsService {
   final SupabaseClient _client = Supabase.instance.client;
 
+  /// Todos os anúncios elegíveis (já filtrados por ativo/período no RLS), em ordem de peso.
+  Future<List<SponsorAd>> fetchAll() async {
+    try {
+      final rows = await _client.from('sponsor_ads').select();
+      final ads = (rows as List).map((r) => SponsorAd.fromMap(r as Map<String, dynamic>)).toList();
+      ads.sort((a, b) => b.weight.compareTo(a.weight));
+      return ads;
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Sorteia UM anúncio dentre os elegíveis, com probabilidade proporcional
   /// ao peso (`weight`) cadastrado no painel. Retorna `null` se não houver
   /// nenhum ativo ou se não houver conectividade — o app nunca deve travar

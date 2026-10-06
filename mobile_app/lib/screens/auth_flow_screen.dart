@@ -1,26 +1,25 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../models/emergency_event.dart';
 import '../models/trip_log.dart';
 import '../models/vehicle_tag.dart';
-import '../models/emergency_event.dart';
-import '../models/sponsor_ad.dart';
+import '../services/active_vehicle_store.dart';
 import '../services/ble_service.dart';
+import '../services/driver_session_service.dart';
 import '../services/local_db_service.dart';
 import '../services/nfc_service.dart';
-import '../services/sponsor_ads_service.dart';
 import '../services/sync_service.dart';
-import '../widgets/sponsor_ad_banner.dart';
-import '../services/driver_session_service.dart';
-import '../services/active_vehicle_store.dart';
+import '../services/tenant_context.dart';
 import '../services/usage_report_service.dart';
+import '../widgets/ads_stack.dart';
 import 'admin_config_screen.dart';
 import 'vehicle_control_screen.dart';
 
 enum _FlowStep { idle, scanningNfc, connectingBle, form, sending, done, error }
 
-/// Fluxo completo do motorista: aproximar do NFC -> conectar BLE -> preencher
-/// Condutor/KM/Destino -> enviar autenticação -> confirmar liberação.
-/// Ver docs/04-manual.md, Seção D.4 (Manual do Motorista).
+/// Fluxo completo do motorista: aproximar do NFC -> conectar BLE -> (veículo
+/// livre?) -> KM (OBD-II ou digitado)/Destino/tempo -> liberar -> controle da
+/// partida. Ver docs/04-manual.md, Seção D.4 (Manual do Motorista).
 class AuthFlowScreen extends StatefulWidget {
   final DriverSession session;
   final VoidCallback onLogout;
@@ -35,32 +34,30 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   final _formKey = GlobalKey<FormState>();
   final _kmController = TextEditingController();
   final _destinationController = TextEditingController();
-  int _validHours = 12; // seletor de validade (admin) — padrão da regra de negócio
+  late int _validHours = AppTenant.settings.defaultValidityHours;
 
   final _nfcService = NfcService();
   final _bleService = BleService();
   final _dbService = LocalDbService();
   late final _syncService = SyncService(_dbService);
-  final _sponsorAdsService = SponsorAdsService();
+  final _usage = UsageReportService();
 
   _FlowStep _step = _FlowStep.idle;
   String? _errorMessage;
   VehicleTag? _vehicleTag;
-  bool _emergencyPendingWasSynced = false; // mostra aviso não-bloqueante no formulário
-  SponsorAd? _sponsorAd; // exibido de forma discreta só na tela inicial (idle)
+  bool _emergencyPendingWasSynced = false;
   final _activeStore = ActiveVehicleStore();
   ActiveVehicle? _active; // último veículo liberado: atalho para o controle da partida
+
+  int _creditSeconds = 0; // crédito de tempo deste motorista (saldo de viagens anteriores)
+  bool _useCredit = false;
+  bool _kmFromObd = false;
 
   @override
   void initState() {
     super.initState();
     _activeStore.load().then((v) {
       if (mounted) setState(() => _active = v);
-    });
-    // Melhor esforço, nunca bloqueia nem falha a tela — é conteúdo
-    // secundário (ver SponsorAdsService.fetchOne).
-    _sponsorAdsService.fetchOne().then((ad) {
-      if (mounted) setState(() => _sponsorAd = ad);
     });
   }
 
@@ -71,6 +68,11 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
     _bleService.disconnect();
     _bleService.dispose();
     super.dispose();
+  }
+
+  String _fmt(int secs) {
+    final h = secs ~/ 3600, m = (secs % 3600) ~/ 60;
+    return '${h}h ${m.toString().padLeft(2, '0')}min';
   }
 
   Future<void> _startFlow() async {
@@ -87,35 +89,56 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       setState(() => _step = _FlowStep.connectingBle);
       await _bleService.connectByMac(tag.bleMac);
 
-      // Se o veículo tem firmware com botão de emergência (ver docs/12) e
-      // houve um acionamento ainda não confirmado, sincroniza com o painel
-      // agora — é a primeira oportunidade de conectividade desde o evento.
-      // Não bloqueia nem falha o fluxo normal de liberação por conta disso.
+      // Evento de emergência pendente no ESP32: sincroniza agora (melhor esforço).
       await _checkPendingEmergency(tag.vehicleId);
+
+      // Exclusividade: enquanto outro motorista está vinculado e tem saldo, o
+      // veículo não pode ser liberado — exceto pelo motorista PARCEIRO dele.
+      final me = widget.session.driverCode;
+      final st = await _bleService.readStatus();
+      final holder = st.driverId;
+      final occupied = (st.status == LockStatus.unlocked || st.status == LockStatus.paused) &&
+          holder.isNotEmpty &&
+          holder != 'EMERGENCY' &&
+          st.remainingSeconds > 0;
+      if (occupied && holder != me) {
+        if (AppTenant.isPartnerOf(tag.vehicleId, holder)) {
+          await _openControl(ActiveVehicle(tag.vehicleId, tag.bleMac, 0, 0), holder);
+          return;
+        }
+        throw Exception('Veículo em uso por $holder (restam ${_fmt(st.remainingSeconds)}). '
+            'Só o motorista parceiro dele, ou o próprio motorista ao desvincular, libera o veículo.');
+      }
+      if (occupied && holder == me) {
+        // Posse já é sua: volta direto ao controle da partida.
+        final known = _active?.vehicleId == tag.vehicleId ? _active! : ActiveVehicle(tag.vehicleId, tag.bleMac, DateTime.now().millisecondsSinceEpoch, 0);
+        await _openControl(known);
+        return;
+      }
+
+      // Novo vínculo: crédito de tempo e KM inicial (OBD-II quando disponível).
+      _creditSeconds = await _usage.creditGet(me);
+      _useCredit = false;
+      final odo = await _bleService.readOdometerKm();
+      _kmFromObd = odo != null;
+      if (odo != null) _kmController.text = odo.toString();
 
       setState(() => _step = _FlowStep.form);
     } catch (e) {
       setState(() {
         _step = _FlowStep.error;
-        _errorMessage = e.toString();
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
       });
     }
   }
 
-  /// Lê a característica de emergência do ESP32; se houver um evento
-  /// pendente, grava localmente, tenta sincronizar com o Supabase e, se
-  /// deu certo, confirma (ACK) ao firmware para não reenviar depois.
-  /// Qualquer falha aqui é silenciosa — nunca deve impedir a liberação
-  /// normal, que é o fluxo principal desta tela.
   Future<void> _checkPendingEmergency(String vehicleId) async {
     try {
       final epoch = await _bleService.readPendingEmergencyEpoch();
       if (epoch <= 0) return;
 
-      // epoch == 1: acionado com o RTC do ESP32 sem hora válida e ainda não
-      // corrigido (firmware: EMERGENCY_TIME_UNKNOWN). Usa a hora desta leitura
-      // — aproximada, mas melhor que 1970 — e evita duplicar se uma tentativa
-      // anterior de sincronizar ficou pendente.
+      // epoch == 1: acionado com o RTC do ESP32 sem hora válida (firmware:
+      // EMERGENCY_TIME_UNKNOWN). Usa a hora desta leitura e evita duplicar.
       final unknownTime = epoch == 1;
       if (unknownTime) {
         final pending = await _dbService.getPendingEmergencySync();
@@ -128,17 +151,13 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       }
       final ev = EmergencyEvent(
         vehicleId: vehicleId,
-        triggeredAt: unknownTime
-            ? DateTime.now()
-            : DateTime.fromMillisecondsSinceEpoch(epoch * 1000, isUtc: true),
+        triggeredAt: unknownTime ? DateTime.now() : DateTime.fromMillisecondsSinceEpoch(epoch * 1000, isUtc: true),
       );
       final id = await _dbService.insertEmergencyEventIfNew(ev);
       if (id != null) {
         final synced = await _syncService.syncPendingEmergency();
         if (synced > 0) await _bleService.ackEmergency();
       } else {
-        // Já registrado localmente em uma leitura anterior — ainda assim
-        // tenta sincronizar (pode ter falhado por falta de rede na vez passada).
         await _syncService.syncPendingEmergency();
       }
       if (mounted) setState(() => _emergencyPendingWasSynced = true);
@@ -154,59 +173,74 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
     setState(() => _step = _FlowStep.sending);
 
     try {
-      await _bleService.sendAuth(
-        driverId: widget.session.driverCode,
-        validHours: _validHours,
-      );
+      final me = widget.session.driverCode;
+      final useCredit = _useCredit && _creditSeconds >= 60;
+      final hours = useCredit ? (_creditSeconds / 3600).ceil().clamp(1, 48) : _validHours;
+      final budget = useCredit ? _creditSeconds.clamp(60, 48 * 3600) : null;
+      final grantedSeconds = budget ?? hours * 3600;
+
+      await _bleService.sendAuth(driverId: me, validHours: hours, budgetSeconds: budget);
+
+      // O BLE aceita a escrita mesmo quando o firmware recusa a regra
+      // (ex.: veículo vinculado a outro motorista): confere o resultado.
+      final st = await _bleService.readStatus();
+      if (st.status != LockStatus.unlocked || st.driverId != me) {
+        throw Exception(st.driverId.isNotEmpty && st.driverId != me
+            ? 'O veículo está vinculado a ${st.driverId} e recusou a liberação.'
+            : 'O veículo não confirmou a liberação. Tente de novo.');
+      }
 
       final now = DateTime.now();
       final log = TripLog(
         vehicleId: _vehicleTag!.vehicleId,
-        driverId: widget.session.driverCode,
+        driverId: me,
         odometerKm: int.parse(_kmController.text.trim()),
         destination: _destinationController.text.trim(),
-        validHours: _validHours,
+        validHours: hours,
         releasedAt: now,
-        expiresAt: now.add(Duration(hours: _validHours)),
+        expiresAt: now.add(Duration(seconds: grantedSeconds)),
+        odometerSource: _kmFromObd ? 'obd' : 'manual',
       );
       await _dbService.insertTripLog(log);
-      final active = ActiveVehicle(
-          _vehicleTag!.vehicleId, _vehicleTag!.bleMac, now.millisecondsSinceEpoch, _validHours);
+      final active = ActiveVehicle(_vehicleTag!.vehicleId, _vehicleTag!.bleMac, now.millisecondsSinceEpoch, hours);
       await _activeStore.save(active);
       _active = active;
-      unawaited(UsageReportService().report(
+      unawaited(_usage.report(
         vehicleId: active.vehicleId,
-        driverCode: widget.session.driverCode,
+        driverCode: me,
         releasedAtMs: active.releasedAtMs,
-        status: LockStatusUpdate(
-            status: LockStatus.unlocked, driverId: widget.session.driverCode, remainingSeconds: _validHours * 3600),
+        status: LockStatusUpdate(status: LockStatus.unlocked, driverId: me, remainingSeconds: grantedSeconds),
         force: true,
       ));
+      if (useCredit) unawaited(_usage.creditSet(me, 0)); // crédito consumido
 
-      // Sincroniza em segundo plano — não bloqueia a confirmação ao
-      // motorista, que já pode dar partida (fluxo é offline-first).
       unawaited(_syncService.syncPending());
-
       setState(() => _step = _FlowStep.done);
     } catch (e) {
       setState(() {
         _step = _FlowStep.error;
-        _errorMessage = e.toString();
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
       });
     }
   }
 
-  /// Abre o controle da partida (botão ligar/desligar). O ESP32 aceita uma
-  /// conexão BLE por vez, então solta a desta tela antes de abrir a outra.
-  Future<void> _openControl() async {
-    final v = _active;
+  /// Abre o controle da partida (botão ligar/desligar). O ESP32 aceita pouca
+  /// conexão BLE simultânea, então solta a desta tela antes de abrir a outra.
+  Future<void> _openControl([ActiveVehicle? vehicle, String? actingFor]) async {
+    final v = vehicle ?? _active;
     if (v == null) return;
     await _bleService.disconnect();
     if (!mounted) return;
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => VehicleControlScreen(session: widget.session, vehicle: v)),
+      MaterialPageRoute(
+        builder: (_) => VehicleControlScreen(session: widget.session, vehicle: v, actingFor: actingFor),
+      ),
     );
-    if (mounted) _reset();
+    final still = await _activeStore.load(); // pode ter sido desvinculado
+    if (mounted) {
+      setState(() => _active = still);
+      _reset();
+    }
   }
 
   void _reset() {
@@ -218,6 +252,8 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
       _errorMessage = null;
       _vehicleTag = null;
       _emergencyPendingWasSynced = false;
+      _kmFromObd = false;
+      _useCredit = false;
     });
   }
 
@@ -234,16 +270,13 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Liberação de Partida'),
+        title: Text(AppTenant.name ?? 'Liberação de Partida'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sair (${widget.session.fullName})',
             onPressed: widget.onLogout,
           ),
-          // Só disponível com o veículo já conectado via BLE — a
-          // configuração é protegida pelo PIN administrativo do próprio
-          // ESP32 (ver AdminConfigScreen), não pelo login do app.
           if (_step == _FlowStep.form)
             IconButton(
               icon: const Icon(Icons.settings),
@@ -281,6 +314,7 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   Widget _buildIdle() {
     return Column(
       children: [
+        const AdsStack(), // anúncios dos apoiadores, empilhados no topo
         Expanded(
           child: Center(
             child: Column(
@@ -288,13 +322,15 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
               children: [
                 const Icon(Icons.nfc, size: 96),
                 const SizedBox(height: 16),
+                Text('Olá, ${widget.session.fullName}', textAlign: TextAlign.center),
+                const SizedBox(height: 4),
                 const Text('Toque para iniciar a liberação', textAlign: TextAlign.center),
                 const SizedBox(height: 24),
                 FilledButton(onPressed: _startFlow, child: const Text('Aproximar do veículo')),
                 if (_active != null) ...[
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
-                    onPressed: _openControl,
+                    onPressed: () => _openControl(),
                     icon: const Icon(Icons.power_settings_new),
                     label: Text('Ligar/desligar partida — ${_active!.vehicleId}'),
                   ),
@@ -303,12 +339,6 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
             ),
           ),
         ),
-        // Espaço discreto de patrocinador — só na tela inicial, nunca
-        // durante o fluxo de liberação em si (ver docs/13-patrocinadores.md).
-        if (_sponsorAd != null) ...[
-          SponsorAdBanner(ad: _sponsorAd!),
-          const SizedBox(height: 8),
-        ],
       ],
     );
   }
@@ -327,6 +357,7 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   }
 
   Widget _buildForm() {
+    final options = AppTenant.settings.validityOptions;
     return Form(
       key: _formKey,
       child: ListView(
@@ -355,7 +386,12 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
           const SizedBox(height: 12),
           TextFormField(
             controller: _kmController,
-            decoration: const InputDecoration(labelText: 'KM atual do odômetro'),
+            readOnly: _kmFromObd,
+            decoration: InputDecoration(
+              labelText: 'KM atual do odômetro',
+              helperText: _kmFromObd ? 'Lido da porta OBD-II do veículo' : 'Digite o KM do painel',
+              suffixIcon: _kmFromObd ? const Icon(Icons.settings_input_component, size: 18) : null,
+            ),
             keyboardType: TextInputType.number,
             validator: (v) {
               if (v == null || v.trim().isEmpty) return 'Obrigatório';
@@ -371,14 +407,21 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
             validator: (v) => (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<int>(
-            value: _validHours,
-            decoration: const InputDecoration(labelText: 'Tempo de uso liberado (horas)'),
-            items: const [4, 8, 12, 24, 48]
-                .map((h) => DropdownMenuItem(value: h, child: Text('$h horas')))
-                .toList(),
-            onChanged: (v) => setState(() => _validHours = v ?? 12),
-          ),
+          if (_creditSeconds >= 60)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _useCredit,
+              onChanged: (v) => setState(() => _useCredit = v ?? false),
+              title: Text('Usar meu crédito de ${_fmt(_creditSeconds)}'),
+              subtitle: const Text('Tempo que sobrou de uma viagem anterior (em vez de um novo saldo).'),
+            ),
+          if (!(_useCredit && _creditSeconds >= 60))
+            DropdownButtonFormField<int>(
+              value: options.contains(_validHours) ? _validHours : options.first,
+              decoration: const InputDecoration(labelText: 'Tempo de uso liberado (horas)'),
+              items: options.map((h) => DropdownMenuItem(value: h, child: Text('$h horas'))).toList(),
+              onChanged: (v) => setState(() => _validHours = v ?? options.first),
+            ),
           const SizedBox(height: 24),
           FilledButton(onPressed: _submitForm, child: const Text('Liberar partida')),
         ],
@@ -393,12 +436,12 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
         children: [
           const Icon(Icons.check_circle, size: 96, color: Colors.green),
           const SizedBox(height: 16),
-          Text('Liberado: $_validHours horas de uso.', textAlign: TextAlign.center),
+          const Text('Veículo liberado.', textAlign: TextAlign.center),
           const SizedBox(height: 4),
           const Text('O tempo só desconta com a partida ligada.', textAlign: TextAlign.center),
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: _openControl,
+            onPressed: () => _openControl(),
             icon: const Icon(Icons.power_settings_new),
             label: const Text('Abrir controle da partida'),
           ),

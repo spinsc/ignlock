@@ -26,20 +26,30 @@ static const int PIN_I2C_SCL = 22; // DS3231
 // para uma entrada colidiria com esse output.
 static const gpio_num_t PIN_EMERGENCY_BTN = GPIO_NUM_32;
 
+// ---- Leitura do hodômetro pela porta OBD-II (CAN) -- ver docs/14-obd-can.md ----
+// Transceptor CAN 3,3 V (ex.: SN65HVD230) ligado ao controlador TWAI do ESP32:
+// TX -> GPIO17, RX -> GPIO16 (livres na placa e no firmware). Opcional: sem o
+// transceptor a leitura devolve "NA" e o app cai para o KM digitado.
+static const gpio_num_t PIN_CAN_TX = GPIO_NUM_17;
+static const gpio_num_t PIN_CAN_RX = GPIO_NUM_16;
+#define OBD_CAN_BITRATE_KBPS  500   // ISO 15765-4, 11 bits (maioria dos carros a partir de 2008)
+#define OBD_REPLY_TIMEOUT_MS  400
+
 // ---- Identidade do dispositivo ----
 // Cada veículo tem um VEHICLE_ID único gravado na tag NFC do painel
 // (ver docs/04-manual.md, Seção D.2). O app usa este ID para exibir/confirmar
 // o veículo antes de conectar via BLE (o MAC BLE também é gravado na tag).
-#define FIRMWARE_VERSION "1.1.2"
+#define FIRMWARE_VERSION "1.2.0"
 
 // ---- BLE GATT — UUIDs customizados (128-bit) ----
 // Gerados uma única vez para este projeto — não reutilizar em outros produtos.
 #define SVC_UUID_IGNITION_LOCK   "8f6a0001-b5a3-4393-e0a9-e50e24dc0001"
-#define CHR_UUID_AUTH            "8f6a0001-b5a3-4393-e0a9-e50e24dc0002" // Write: DRIVER_ID:VALID_HOURS:EPOCH (VALID_HOURS = saldo de horas de USO)
+#define CHR_UUID_AUTH            "8f6a0001-b5a3-4393-e0a9-e50e24dc0002" // Write: DRIVER_ID:VALID_HOURS:EPOCH[:SALDO_SEG] (saldo de USO; SALDO_SEG opcional = crédito)
 #define CHR_UUID_STATUS          "8f6a0001-b5a3-4393-e0a9-e50e24dc0003" // Read/Notify: ESTADO|driver|saldo_seg|Nh  (ESTADO = LOCKED|UNLOCKED|PAUSED)
 #define CHR_UUID_CONFIG          "8f6a0001-b5a3-4393-e0a9-e50e24dc0004" // Write (admin): CONFIG:HOURS:EMERGENCY_HOURS:PIN
 #define STATUS_COUNTER_PERSIST_MS 60000 // grava o saldo em NVS a cada 1 min com a partida liberada
-#define CHR_UUID_CONTROL         "8f6a0001-b5a3-4393-e0a9-e50e24dc0006" // Write: PAUSE:<driver> | RESUME:<driver>
+#define CHR_UUID_CONTROL         "8f6a0001-b5a3-4393-e0a9-e50e24dc0006" // Write: PAUSE|RESUME|UNBIND:<driver>[:<titular>]
+#define CHR_UUID_ODO             "8f6a0001-b5a3-4393-e0a9-e50e24dc0007" // Read: "ODO:<km*10>" | "ODO:NA" (lido na hora via CAN/OBD-II)
 #define CHR_UUID_EMERGENCY       "8f6a0001-b5a3-4393-e0a9-e50e24dc0005" // Read/Notify: "EMG:<epoch|0>" · Write "ACK" confirma sync
 
 // ---- Regras de negócio ----

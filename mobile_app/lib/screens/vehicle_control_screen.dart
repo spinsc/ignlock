@@ -2,17 +2,24 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/active_vehicle_store.dart';
 import '../services/ble_service.dart';
-import '../services/usage_report_service.dart';
 import '../services/driver_session_service.dart';
+import '../services/tenant_context.dart';
+import '../services/usage_report_service.dart';
+import '../widgets/ads_stack.dart';
 
 /// Controle da partida: botão redondo vermelho (partida ligada → toque para
 /// DESLIGAR) que vira verde (desligada → toque para LIGAR). O saldo de tempo
 /// de uso só desconta com a partida ligada — ver firmware/src/lock_controller.cpp.
+///
+/// Titular: também pode "Encerrar e desvincular" (libera o veículo para outro
+/// motorista; o saldo que sobrou vira crédito dele). Parceiro ([actingFor]):
+/// liga/desliga em nome do titular, sem poder desvincular.
 class VehicleControlScreen extends StatefulWidget {
   final DriverSession session;
   final ActiveVehicle vehicle;
+  final String? actingFor;
 
-  const VehicleControlScreen({super.key, required this.session, required this.vehicle});
+  const VehicleControlScreen({super.key, required this.session, required this.vehicle, this.actingFor});
 
   @override
   State<VehicleControlScreen> createState() => _VehicleControlScreenState();
@@ -29,6 +36,8 @@ class _VehicleControlScreenState extends State<VehicleControlScreen> {
   bool _busy = false;
   String? _error;
   int _ticks = 0;
+
+  bool get _isPartner => widget.actingFor != null;
 
   @override
   void initState() {
@@ -49,12 +58,14 @@ class _VehicleControlScreenState extends State<VehicleControlScreen> {
 
   void _apply(LockStatusUpdate s) {
     if (!mounted) return;
-    _usage.report(
-      vehicleId: widget.vehicle.vehicleId,
-      driverCode: widget.session.driverCode,
-      releasedAtMs: widget.vehicle.releasedAtMs,
-      status: s,
-    );
+    if (!_isPartner) {
+      _usage.report(
+        vehicleId: widget.vehicle.vehicleId,
+        driverCode: widget.session.driverCode,
+        releasedAtMs: widget.vehicle.releasedAtMs,
+        status: s,
+      );
+    }
     setState(() {
       _status = s;
       _statusAt = DateTime.now();
@@ -86,11 +97,10 @@ class _VehicleControlScreenState extends State<VehicleControlScreen> {
   void _onTick() {
     if (!mounted) return;
     _ticks++;
-    // Releitura periódica quando conectado (o firmware só notifica em mudança de estado).
     if (_ticks % 30 == 0 && _ble.isConnected && !_busy) {
       _ble.readStatus().then(_apply).catchError((_) {});
     }
-    setState(() {}); // atualiza o contador regressivo
+    setState(() {});
   }
 
   Future<void> _toggle() async {
@@ -103,7 +113,7 @@ class _VehicleControlScreenState extends State<VehicleControlScreen> {
     });
     try {
       await _ensureConnected();
-      await _ble.sendControl(command, widget.session.driverCode);
+      await _ble.sendControl(command, widget.session.driverCode, actingFor: widget.actingFor);
       await Future.delayed(const Duration(milliseconds: 400));
       final after = await _ble.readStatus();
       _apply(after);
@@ -111,6 +121,104 @@ class _VehicleControlScreenState extends State<VehicleControlScreen> {
       if (after.status != expected && mounted) {
         setState(() => _error = 'O veículo não aceitou o comando. Se o tempo acabou, faça uma nova liberação pela tag NFC.');
       }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<int?> _askKm() async {
+    final c = TextEditingController();
+    final required = AppTenant.settings.requireFinalKm;
+    final result = await showDialog<int?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('KM final do veículo'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Não foi possível ler o hodômetro pela porta OBD-II. Informe o KM atual do painel.'),
+            TextField(controller: c, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'KM atual')),
+          ],
+        ),
+        actions: [
+          if (!required) TextButton(onPressed: () => Navigator.pop(ctx, -1), child: const Text('Pular')),
+          FilledButton(
+            onPressed: () {
+              final n = int.tryParse(c.text.trim());
+              if (n != null && n >= 0) Navigator.pop(ctx, n);
+            },
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    return result == -1 ? null : result;
+  }
+
+  Future<void> _unbind() async {
+    if (_busy || _status == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Encerrar e desvincular?'),
+        content: const Text(
+            'O veículo ficará livre para outro motorista. O tempo que sobrou fica guardado como crédito seu para uma próxima liberação.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Desvincular')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await _ensureConnected();
+      final current = await _ble.readStatus();
+      final remaining = current.remainingSeconds;
+
+      // KM final: lido do OBD-II quando possível; senão digitado.
+      var kmSource = 'obd';
+      int? endKm = await _ble.readOdometerKm();
+      if (endKm == null) {
+        kmSource = 'manual';
+        setState(() => _busy = false);
+        endKm = await _askKm();
+        if (endKm == null && AppTenant.settings.requireFinalKm) return;
+        setState(() => _busy = true);
+      }
+
+      await _ble.sendControl('UNBIND', widget.session.driverCode);
+      await Future.delayed(const Duration(milliseconds: 400));
+      final after = await _ble.readStatus();
+      if (after.driverId.isNotEmpty && after.status != LockStatus.locked) {
+        throw Exception('O veículo não confirmou o desvínculo. Tente de novo.');
+      }
+
+      final saved = await _usage.reportTripEnd(
+        vehicleId: widget.vehicle.vehicleId,
+        driverCode: widget.session.driverCode,
+        releasedAtMs: widget.vehicle.releasedAtMs,
+        endKm: endKm,
+        kmSource: kmSource,
+        remainingSeconds: remaining,
+      );
+      final credited = await _usage.creditSet(widget.session.driverCode, remaining);
+      await ActiveVehicleStore().clear();
+
+      if (!mounted) return;
+      final h = remaining ~/ 3600, m = (remaining % 3600) ~/ 60;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Veículo liberado. Crédito guardado: ${h}h ${m.toString().padLeft(2, '0')}min'
+            '${(saved && credited) ? '' : ' (sem internet: registro do KM final/crédito não foi enviado)'}'),
+      ));
+      Navigator.of(context).pop();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -149,7 +257,7 @@ class _VehicleControlScreenState extends State<VehicleControlScreen> {
             ? 'Partida ligada — o tempo está contando.'
             : paused
                 ? 'Partida desligada — o tempo está parado.'
-                : 'Tempo de uso esgotado. Faça uma nova liberação pela tag NFC.';
+                : 'Veículo livre ou tempo de uso esgotado. Faça uma nova liberação pela tag NFC.';
 
     return Scaffold(
       appBar: AppBar(title: Text('Partida — ${widget.vehicle.vehicleId}')),
@@ -157,6 +265,13 @@ class _VehicleControlScreenState extends State<VehicleControlScreen> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
+            const AdsStack(),
+            if (_isPartner)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('Operando em nome de ${widget.actingFor} (motorista parceiro).',
+                    style: Theme.of(context).textTheme.labelLarge),
+              ),
             const Spacer(),
             GestureDetector(
               onTap: canToggle ? _toggle : null,
@@ -196,8 +311,13 @@ class _VehicleControlScreenState extends State<VehicleControlScreen> {
               Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
             ],
             const Spacer(),
-            if (s == null && !_busy)
-              OutlinedButton(onPressed: _refresh, child: const Text('Conectar de novo')),
+            if (s == null && !_busy) OutlinedButton(onPressed: _refresh, child: const Text('Conectar de novo')),
+            if (!_isPartner && (on || paused))
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _unbind,
+                icon: const Icon(Icons.link_off),
+                label: const Text('Encerrar e desvincular'),
+              ),
             const SizedBox(height: 8),
             Text(
               'O tempo só desconta com a partida ligada. Fique perto do veículo para ligar/desligar (Bluetooth).',

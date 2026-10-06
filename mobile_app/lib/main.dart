@@ -53,9 +53,13 @@ class _SessionGateState extends State<_SessionGate> {
 
   Future<void> _restore() async {
     var s = await _service.load();
-    if (s != null && !await _service.stillActive(s.driverCode)) {
-      await _service.logout();
-      s = null;
+    if (s != null) {
+      if (!await _service.stillActive(s)) {
+        await _service.logout();
+        s = null;
+      } else {
+        _service.refreshTenantData(s); // parâmetros e parceiros atualizados, sem bloquear
+      }
     }
     if (mounted) {
       setState(() {

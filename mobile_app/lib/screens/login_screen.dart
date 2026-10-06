@@ -13,15 +13,26 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _form = GlobalKey<FormState>();
-  final _code = TextEditingController();
-  final _pin = TextEditingController();
+  final _company = TextEditingController();
+  final _email = TextEditingController();
+  final _password = TextEditingController();
   bool _busy = false;
   String? _error;
+  String? _savedCompany; // empresa já lembrada neste celular
+
+  @override
+  void initState() {
+    super.initState();
+    widget.service.savedTenantName().then((n) {
+      if (mounted) setState(() => _savedCompany = n);
+    });
+  }
 
   @override
   void dispose() {
-    _code.dispose();
-    _pin.dispose();
+    _company.dispose();
+    _email.dispose();
+    _password.dispose();
     super.dispose();
   }
 
@@ -31,20 +42,31 @@ class _LoginScreenState extends State<LoginScreen> {
       _busy = true;
       _error = null;
     });
-    final (result, session) = await widget.service.login(_code.text, _pin.text);
+    final (result, session) = await widget.service.login(
+      company: _savedCompany == null ? _company.text : null,
+      email: _email.text,
+      password: _password.text,
+    );
     if (!mounted) return;
     switch (result) {
       case LoginResult.ok:
         widget.onLoggedIn(session!);
         return;
       case LoginResult.invalid:
-        _error = 'Matrícula ou PIN incorretos.';
+        _error = 'E-mail ou senha incorretos.';
       case LoginResult.locked:
-        _error = 'Muitas tentativas. Conta bloqueada por 15 minutos — ou peça um novo PIN ao administrador.';
+        _error = 'Muitas tentativas. Conta bloqueada por 15 minutos — ou peça uma nova senha ao administrador.';
+      case LoginResult.tenantNotFound:
+        _error = 'Empresa não encontrada. Confira o nome (ou o código) informado pelo administrador.';
       case LoginResult.offline:
         _error = 'Sem conexão com o servidor. O primeiro acesso precisa de internet.';
     }
     setState(() => _busy = false);
+  }
+
+  Future<void> _changeCompany() async {
+    await widget.service.forgetTenant();
+    if (mounted) setState(() => _savedCompany = null);
   }
 
   @override
@@ -57,23 +79,44 @@ class _LoginScreenState extends State<LoginScreen> {
           key: _form,
           child: ListView(
             children: [
-              const SizedBox(height: 16),
-              const Icon(Icons.lock_outline, size: 72),
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
+              Image.asset('assets/acn-logo.png', height: 72, alignment: Alignment.centerLeft),
+              const SizedBox(height: 20),
+              if (_savedCompany == null)
+                TextFormField(
+                  controller: _company,
+                  decoration: const InputDecoration(
+                    labelText: 'Empresa',
+                    helperText: 'Só no primeiro acesso: nome (ou código) da sua empresa.',
+                  ),
+                  textInputAction: TextInputAction.next,
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
+                )
+              else
+                Row(
+                  children: [
+                    const Icon(Icons.business, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_savedCompany!, style: Theme.of(context).textTheme.titleMedium)),
+                    TextButton(onPressed: _changeCompany, child: const Text('Trocar')),
+                  ],
+                ),
+              const SizedBox(height: 8),
               TextFormField(
-                controller: _code,
-                decoration: const InputDecoration(labelText: 'Matrícula / ID do condutor'),
+                controller: _email,
+                decoration: const InputDecoration(labelText: 'E-mail'),
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
                 textInputAction: TextInputAction.next,
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
+                validator: (v) => (v == null || !v.contains('@')) ? 'E-mail inválido' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _pin,
-                decoration: const InputDecoration(labelText: 'PIN'),
-                keyboardType: TextInputType.number,
+                controller: _password,
+                decoration: const InputDecoration(labelText: 'Senha'),
                 obscureText: true,
                 onFieldSubmitted: (_) => _submit(),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Obrigatório' : null,
+                validator: (v) => (v == null || v.isEmpty) ? 'Obrigatório' : null,
               ),
               const SizedBox(height: 16),
               if (_error != null) ...[
@@ -88,7 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'O PIN é definido pelo administrador no painel. O primeiro acesso precisa de internet; depois, a liberação do veículo funciona offline.',
+                'E-mail e senha são cadastrados pelo administrador da sua empresa no painel. O primeiro acesso precisa de internet; depois, a liberação do veículo funciona offline.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],

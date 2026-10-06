@@ -11,6 +11,7 @@ class GattUuids {
   static final Guid config = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0004');
   static final Guid emergency = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0005');
   static final Guid control = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0006');
+  static final Guid odo = Guid('8f6a0001-b5a3-4393-e0a9-e50e24dc0007');
 }
 
 /// locked = bloqueado sem saldo (nova liberação NFC); paused = partida
@@ -53,6 +54,7 @@ class BleService {
   BluetoothCharacteristic? _configChar;
   BluetoothCharacteristic? _emergencyChar;
   BluetoothCharacteristic? _controlChar;
+  BluetoothCharacteristic? _odoChar;
 
   bool get isConnected => _device != null && _device!.isConnected;
 
@@ -142,6 +144,7 @@ class BleService {
       if (c.uuid == GattUuids.config) _configChar = c;
       if (c.uuid == GattUuids.emergency) _emergencyChar = c;
       if (c.uuid == GattUuids.control) _controlChar = c;
+      if (c.uuid == GattUuids.odo) _odoChar = c;
     }
 
     if (_authChar == null || _statusChar == null) {
@@ -161,10 +164,11 @@ class BleService {
   Future<void> sendAuth({
     required String driverId,
     required int validHours,
+    int? budgetSeconds, // crédito de tempo de uma liberação anterior (firmware 1.2+)
   }) async {
     if (_authChar == null) throw Exception('Não conectado ao dispositivo.');
     final epoch = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
-    final payload = '$driverId:$validHours:$epoch';
+    final payload = '$driverId:$validHours:$epoch${budgetSeconds != null ? ':$budgetSeconds' : ''}';
     await _authChar!.write(utf8.encode(payload), withoutResponse: false);
   }
 
@@ -183,11 +187,34 @@ class BleService {
 
   /// Desativa ("PAUSE") ou reativa ("RESUME") a partida preservando o saldo
   /// de tempo de uso. Exige firmware v1.1+ (característica CONTROL).
-  Future<void> sendControl(String command, String driverId) async {
+  /// [actingFor]: código do titular quando quem comanda é o motorista PARCEIRO.
+  Future<void> sendControl(String command, String driverId, {String? actingFor}) async {
     if (_controlChar == null) {
       throw Exception('Este veículo está com firmware antigo (sem controle de partida). Atualize o ESP32.');
     }
-    await _controlChar!.write(utf8.encode('$command:$driverId'), withoutResponse: false);
+    final payload = actingFor == null ? '$command:$driverId' : '$command:$driverId:$actingFor';
+    await _controlChar!.write(utf8.encode(payload), withoutResponse: false);
+  }
+
+  /// Desvinculação forçada pelo administrador (PIN do veículo) — firmware 1.2+.
+  Future<void> sendAdminUnbind(String adminPin) async {
+    if (_configChar == null) throw Exception('Não conectado ao dispositivo.');
+    await _configChar!.write(utf8.encode('UNBIND_ADMIN:$adminPin'), withoutResponse: false);
+  }
+
+  /// Hodômetro lido AGORA pela porta OBD-II (CAN) do ESP32, em km. `null` se o
+  /// veículo/ECU não responde (ou firmware/hardware sem a função): usar KM digitado.
+  Future<int?> readOdometerKm() async {
+    if (_odoChar == null) return null;
+    try {
+      final raw = utf8.decode(await _odoChar!.read()); // "ODO:<km*10>" ou "ODO:NA"
+      final parts = raw.split(':');
+      if (parts.length < 2) return null;
+      final km10 = int.tryParse(parts[1]);
+      return km10 == null ? null : (km10 / 10).round();
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Lê o estado atual direto da característica STATUS.
@@ -227,6 +254,7 @@ class BleService {
     _configChar = null;
     _emergencyChar = null;
     _controlChar = null;
+    _odoChar = null;
   }
 
   void dispose() {

@@ -30,6 +30,10 @@ public:
     // a partida preservando o saldo; "RESUME:<driver>" religa se ainda há saldo.
     bool handleControlPayload(const String &payload);
 
+    // Desvinculação forçada pelo administrador (PIN do veículo, característica
+    // CONFIG: "UNBIND_ADMIN:<PIN>") — motorista que perdeu o celular/esqueceu.
+    bool adminUnbind(const String &pin);
+
     // Aplica nova tolerância padrão (característica CONFIG, autenticada por PIN).
     bool handleConfigPayload(const String &payload, Storage *storage);
 
@@ -50,6 +54,8 @@ private:
     void applyGpioState(bool unlock);
     void forceLockFailSafe(const char *reason);
     bool triggerEmergencyRelease();
+    bool holderActive() const;   // há motorista vinculado com saldo > 0
+    void clearBinding();         // solta o vínculo: sem motorista, saldo zerado, bloqueado
     void accountElapsed();          // desconta do saldo o tempo corrido desde a última contagem
     void startCounting();           // marca o início de um trecho com a partida liberada
 

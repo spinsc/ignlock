@@ -1,7 +1,7 @@
 name: ignition_lock_app
 description: App de liberação de partida veicular via NFC + BLE, 100% offline-first.
 publish_to: "none"
-version: 1.0.0+1
+version: 2.0.0+2
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -40,3 +40,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/acn-logo.png

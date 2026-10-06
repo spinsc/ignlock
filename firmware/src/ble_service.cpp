@@ -1,6 +1,7 @@
 #include "ble_service.h"
 #include <NimBLEDevice.h>
 #include "config.h"
+#include "obd_can.h"
 
 BleService g_bleService;
 
@@ -75,6 +76,26 @@ public:
 
 private:
     LockController *lockController_;
+};
+
+// ---------------------------------------------------------------------------
+// Característica ODO (read): lê o hodômetro pela OBD-II (CAN) no momento da
+// leitura. Resposta em cache por 3 s para leituras repetidas não travarem o BLE.
+// ---------------------------------------------------------------------------
+class OdoCallbacks : public NimBLECharacteristicCallbacks {
+public:
+    void onRead(NimBLECharacteristic *chr) override {
+        static uint32_t lastMs = 0;
+        static char cached[24] = "ODO:NA";
+        if (lastMs == 0 || millis() - lastMs > 3000) {
+            uint32_t km10 = 0;
+            if (ObdCan::readOdometerKm10(km10)) snprintf(cached, sizeof(cached), "ODO:%u", km10);
+            else snprintf(cached, sizeof(cached), "ODO:NA");
+            lastMs = millis();
+            Serial.printf("[OBD] %s\n", cached);
+        }
+        setText(chr, cached);
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -183,6 +204,10 @@ void BleService::begin(LockController *lockController, Storage *storage) {
         CHR_UUID_CONFIG,
         NIMBLE_PROPERTY::WRITE);
     configChar->setCallbacks(new ConfigCallbacks(lockController_, storage_));
+
+    NimBLECharacteristic *odoChar = svc->createCharacteristic(CHR_UUID_ODO, NIMBLE_PROPERTY::READ);
+    odoChar->setCallbacks(new OdoCallbacks());
+    setText(odoChar, "ODO:NA");
 
     NimBLECharacteristic *controlChar = svc->createCharacteristic(
         CHR_UUID_CONTROL,

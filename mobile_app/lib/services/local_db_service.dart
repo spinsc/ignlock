@@ -9,7 +9,7 @@ import '../models/emergency_event.dart';
 /// o app nunca depende de conectividade para operar.
 class LocalDbService {
   static const _dbName = 'ignition_lock.db';
-  static const _dbVersion = 2;
+  static const _dbVersion = 3;
   Database? _db;
 
   Future<Database> get database async {
@@ -33,6 +33,7 @@ class LocalDbService {
             valid_hours INTEGER NOT NULL,
             released_at INTEGER NOT NULL,
             expires_at INTEGER NOT NULL,
+            odometer_source TEXT NOT NULL DEFAULT 'manual',
             synced INTEGER NOT NULL DEFAULT 0
           )
         ''');
@@ -42,6 +43,9 @@ class LocalDbService {
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await _createEmergencyTable(db);
+        }
+        if (oldVersion < 3) {
+          await db.execute("ALTER TABLE trip_logs ADD COLUMN odometer_source TEXT NOT NULL DEFAULT 'manual'");
         }
       },
     );

@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/trip_log.dart';
 import '../models/emergency_event.dart';
 import 'local_db_service.dart';
+import 'tenant_context.dart';
 
 /// Sincronização em lote dos logs de viagem com o Supabase (projeto
 /// "ignlock"), quando houver conectividade. Chamado oportunisticamente
@@ -20,6 +21,7 @@ class SyncService {
   SyncService(this.db);
 
   Future<int> syncPending() async {
+    if (AppTenant.id == null) return 0;
     final pending = await db.getPendingSync();
     if (pending.isEmpty) return 0;
 
@@ -37,6 +39,7 @@ class SyncService {
   Future<bool> _uploadOne(TripLog log) async {
     try {
       await _client.from('trip_logs').insert({
+        'tenant_id': AppTenant.id,
         'vehicle_id': log.vehicleId,
         'driver_code': log.driverId,
         'odometer_km': log.odometerKm,
@@ -44,6 +47,7 @@ class SyncService {
         'valid_hours': log.validHours,
         'released_at': log.releasedAt.toUtc().toIso8601String(),
         'expires_at': log.expiresAt.toUtc().toIso8601String(),
+        'odometer_source': log.odometerSource,
       });
       return true;
     } on PostgrestException catch (e) {
@@ -63,6 +67,7 @@ class SyncService {
   /// Mesma regra de `_uploadOne`: nunca encadear `.select()` no insert —
   /// a chave anônima só tem permissão de INSERT em `emergency_events`.
   Future<int> syncPendingEmergency() async {
+    if (AppTenant.id == null) return 0;
     final pending = await db.getPendingEmergencySync();
     if (pending.isEmpty) return 0;
 
@@ -80,6 +85,7 @@ class SyncService {
   Future<bool> _uploadOneEmergency(EmergencyEvent ev) async {
     try {
       await _client.from('emergency_events').insert({
+        'tenant_id': AppTenant.id,
         'vehicle_id': ev.vehicleId,
         'triggered_at': ev.triggeredAt.toUtc().toIso8601String(),
       });
