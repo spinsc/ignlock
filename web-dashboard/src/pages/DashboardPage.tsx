@@ -10,36 +10,60 @@ import { AccessPanel } from '../components/AccessPanel';
 import { TrackingPanel } from '../components/TrackingPanel';
 import { EmergencyPanel } from '../components/EmergencyPanel';
 import { SponsorsPanel } from '../components/SponsorsPanel';
+import { TenantParamsPanel } from '../components/TenantParamsPanel';
+import { PlatformPanel } from '../components/PlatformPanel';
+import { AdsStack } from '../components/AdsStack';
 
-type Tab = 'vehicles' | 'drivers' | 'access' | 'logs' | 'tracking' | 'emergency' | 'sponsors' | 'users';
+type Tab =
+  | 'vehicles' | 'drivers' | 'access' | 'logs' | 'tracking' | 'emergency'
+  | 'params' | 'sponsors' | 'platform' | 'users';
 
 export function DashboardPage({ session }: { session: Session }) {
   const [tab, setTab] = useState<Tab>('logs');
-  const { isAdmin } = useProfile(session);
+  const { tenant, tenants, isAdmin, isSuperadmin } = useProfile(session);
+
+  async function switchTenant(id: string) {
+    const { error } = await supabase.rpc('switch_tenant', { p_tenant: id });
+    if (!error) window.location.reload();
+  }
+
+  const tabBtn = (t: Tab, label: string) => (
+    <button className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{label}</button>
+  );
 
   return (
     <div className="app-shell">
       <header className="topbar">
-        <span className="brand">IGNLOCK · PAINEL DA FROTA</span>
-        <nav className="tabs">
-          <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}>Logs de Viagem</button>
-          <button className={tab === 'tracking' ? 'active' : ''} onClick={() => setTab('tracking')}>Rastreamento</button>
-          <button className={tab === 'vehicles' ? 'active' : ''} onClick={() => setTab('vehicles')}>Veículos</button>
-          <button className={tab === 'drivers' ? 'active' : ''} onClick={() => setTab('drivers')}>Condutores</button>
-          <button className={tab === 'access' ? 'active' : ''} onClick={() => setTab('access')}>Autorizações</button>
-          <button className={tab === 'emergency' ? 'active' : ''} onClick={() => setTab('emergency')}>Emergências</button>
-          {isAdmin && (
-            <>
-              <button className={tab === 'sponsors' ? 'active' : ''} onClick={() => setTab('sponsors')}>Patrocinadores</button>
-              <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Usuários</button>
-            </>
+        <img className="brand-logo" src={`${import.meta.env.BASE_URL}acn-logo.png`} alt="ACN Sinal Verde" />
+        <div className="brand-block">
+          <span className="brand">IGNLOCK · PAINEL DA FROTA</span>
+          {isSuperadmin && tenants.length > 1 ? (
+            <select className="tenant-select" value={tenant?.id ?? ''} onChange={(e) => switchTenant(e.target.value)}>
+              {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          ) : (
+            <span className="tenant-name">{tenant?.name ?? '—'}</span>
           )}
+        </div>
+        <nav className="tabs">
+          {tabBtn('logs', 'Logs de Viagem')}
+          {tabBtn('tracking', 'Rastreamento')}
+          {tabBtn('vehicles', 'Veículos')}
+          {tabBtn('drivers', 'Condutores')}
+          {tabBtn('access', 'Autorizações')}
+          {tabBtn('emergency', 'Emergências')}
+          {isAdmin && tabBtn('params', 'Parâmetros')}
+          {isAdmin && tabBtn('users', 'Usuários')}
+          {isSuperadmin && tabBtn('sponsors', 'Patrocinadores')}
+          {isSuperadmin && tabBtn('platform', 'Plataforma')}
         </nav>
         <div className="topbar-user">
           <span className="mono">{session.user.email}</span>
           <button className="ghost" onClick={() => supabase.auth.signOut()}>Sair</button>
         </div>
       </header>
+
+      <AdsStack />
 
       <main className="app-main">
         {tab === 'logs' && <TripLogsPanel />}
@@ -48,7 +72,9 @@ export function DashboardPage({ session }: { session: Session }) {
         {tab === 'drivers' && <DriversPanel />}
         {tab === 'access' && <AccessPanel />}
         {tab === 'emergency' && <EmergencyPanel />}
-        {tab === 'sponsors' && isAdmin && <SponsorsPanel />}
+        {tab === 'params' && isAdmin && <TenantParamsPanel tenant={tenant} />}
+        {tab === 'sponsors' && isSuperadmin && <SponsorsPanel />}
+        {tab === 'platform' && isSuperadmin && <PlatformPanel currentTenantId={tenant?.id ?? null} />}
         {tab === 'users' && <UsersPanel isAdmin={isAdmin} />}
       </main>
     </div>

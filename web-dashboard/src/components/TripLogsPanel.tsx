@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase, type TripLog, type UsageSnapshot } from '../lib/supabaseClient';
+import { supabase, type TripEnd, type TripLog, type UsageSnapshot } from '../lib/supabaseClient';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('pt-BR');
@@ -22,6 +22,7 @@ export function TripLogsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [vehicleFilter, setVehicleFilter] = useState('');
   const [usage, setUsage] = useState<Map<string, UsageSnapshot>>(new Map());
+  const [ends, setEnds] = useState<Map<string, TripEnd>>(new Map());
 
   useEffect(() => {
     // Embeds via FK: drivers(full_name) e vehicles(plate, model) — assim a
@@ -46,6 +47,21 @@ export function TripLogsPanel() {
           if (!latest.has(k)) latest.set(k, s); // já vem da mais nova para a mais antiga
         }
         setUsage(latest);
+      });
+
+    // Encerramentos (desvincular): KM final e fonte (manual/OBD).
+    supabase
+      .from('trip_ends')
+      .select('vehicle_id, driver_code, released_at, ended_at, end_odometer_km, odometer_source, remaining_seconds')
+      .order('ended_at', { ascending: false })
+      .limit(5000)
+      .then(({ data }) => {
+        const m = new Map<string, TripEnd>();
+        for (const e of (data ?? []) as TripEnd[]) {
+          const k = tripKey(e.vehicle_id, e.driver_code, e.released_at);
+          if (!m.has(k)) m.set(k, e);
+        }
+        setEnds(m);
       });
 
     setLoading(true);
@@ -81,7 +97,8 @@ export function TripLogsPanel() {
             <tr>
               <th>Veículo</th>
               <th>Motorista</th>
-              <th>KM</th>
+              <th>KM inicial</th>
+              <th>KM final</th>
               <th>Destino</th>
               <th>Liberado em</th>
               <th>Saldo liberado</th>
@@ -114,7 +131,23 @@ export function TripLogsPanel() {
                     <span>{log.drivers?.full_name ?? '—'}</span>
                     <div className="muted mono" style={{ padding: '2px 0 0', fontSize: 11 }}>{log.driver_code}</div>
                   </td>
-                  <td className="num">{log.odometer_km.toLocaleString('pt-BR')}</td>
+                  <td className="num">{log.odometer_km.toLocaleString('pt-BR')}
+                    <div className="muted" style={{ padding: '2px 0 0', fontSize: 11 }}>{log.odometer_source === 'obd' ? 'OBD-II' : 'manual'}</div>
+                  </td>
+                  <td className="num">
+                    {(() => {
+                      const end = ends.get(tripKey(log.vehicle_id, log.driver_code, log.released_at));
+                      if (!end) return '—';
+                      return (
+                        <>
+                          {end.end_odometer_km === null ? '—' : end.end_odometer_km.toLocaleString('pt-BR')}
+                          <div className="muted" style={{ padding: '2px 0 0', fontSize: 11 }}>
+                            {end.odometer_source === 'obd' ? 'OBD-II' : 'manual'} · encerrado {formatDate(end.ended_at)}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </td>
                   <td>{log.destination}</td>
                   <td>{formatDate(log.released_at)}</td>
                   <td className="num">{log.valid_hours}h</td>
@@ -131,7 +164,7 @@ export function TripLogsPanel() {
             })}
             {logs.length === 0 && (
               <tr>
-                <td colSpan={9} className="muted">Nenhum log sincronizado ainda.</td>
+                <td colSpan={10} className="muted">Nenhum log sincronizado ainda.</td>
               </tr>
             )}
           </tbody>

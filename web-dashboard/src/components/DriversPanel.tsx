@@ -23,7 +23,7 @@ export function DriversPanel() {
       .order('created_at', { ascending: false });
     if (error) setError(error.message);
     else setDrivers(data ?? []);
-    const pins = await supabase.rpc('admin_drivers_with_pin');
+    const pins = await supabase.rpc('admin_drivers_with_access');
     if (!pins.error) setWithPin(new Set((pins.data ?? []) as string[]));
     setLoading(false);
   }
@@ -32,8 +32,12 @@ export function DriversPanel() {
     e.preventDefault();
     if (!pinFor) return;
     setPinError(null);
-    const pin = String(new FormData(e.currentTarget).get('pin')).trim();
-    const { error } = await supabase.rpc('admin_set_driver_pin', { p_code: pinFor.driver_code, p_pin: pin });
+    const f = new FormData(e.currentTarget);
+    const { error } = await supabase.rpc('admin_set_driver_password', {
+      p_code: pinFor.driver_code,
+      p_email: String(f.get('email')).trim(),
+      p_password: String(f.get('password') ?? ''),
+    });
     if (error) { setPinError(error.message); return; }
     setPinFor(null);
     load();
@@ -87,7 +91,7 @@ export function DriversPanel() {
       }
       const { error } = await supabase
         .from('drivers')
-        .upsert({ driver_code, full_name }, { onConflict: 'driver_code' });
+        .upsert({ driver_code, full_name }, { onConflict: 'tenant_id,driver_code' });
       if (error) errors.push(`${driver_code}: ${error.message}`);
       else ok++;
     }
@@ -136,14 +140,14 @@ export function DriversPanel() {
               <th>Matrícula</th>
               <th>Nome</th>
               <th>Status</th>
-              <th>PIN do app</th>
+              <th>Acesso ao app</th>
             </tr>
           </thead>
           <tbody>
             {drivers.map((d) => (
               <tr key={d.id}>
                 <td className="mono">{d.driver_code}</td>
-                <td>{d.full_name}</td>
+                <td>{d.full_name}{d.email && <div className="muted mono" style={{ padding: '2px 0 0', fontSize: 11 }}>{d.email}</div>}</td>
                 <td>
                   <button className={`pill ${d.active ? 'pill-ok' : 'pill-off'}`} onClick={() => toggleActive(d)}>
                     {d.active ? 'ativo' : 'inativo'}
@@ -151,7 +155,7 @@ export function DriversPanel() {
                 </td>
                 <td>
                   <button className="ghost" onClick={() => { setPinError(null); setPinFor(d); }}>
-                    {withPin.has(d.driver_code) ? 'Trocar PIN' : 'Definir PIN'}
+                    {withPin.has(d.driver_code) ? 'Editar acesso' : 'Definir acesso'}
                   </button>
                   {!withPin.has(d.driver_code) && <span className="muted" style={{ padding: '0 0 0 8px', fontSize: 11 }}>sem acesso ao app</span>}
                 </td>
@@ -169,13 +173,14 @@ export function DriversPanel() {
       {pinFor && (
         <div className="modal-backdrop" onClick={() => setPinFor(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>PIN do app — {pinFor.full_name}</h3>
-            <p>Entrada no app com a matrícula <b>{pinFor.driver_code}</b> + este PIN (4 a 8 dígitos). Após 5 erros a conta trava por 15 min; definir um novo PIN destrava.</p>
+            <h3>Acesso ao app — {pinFor.full_name}</h3>
+            <p>O motorista entra no app com <b>e-mail e senha</b> (no 1º acesso, também o código da empresa). Após 5 erros a conta trava por 15 min; definir uma nova senha destrava. Deixe a senha em branco para só alterar o e-mail.</p>
             <form onSubmit={handleSetPin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input name="pin" type="password" inputMode="numeric" pattern="[0-9]{4,8}" title="4 a 8 dígitos" placeholder="Novo PIN" autoComplete="new-password" required />
+              <input name="email" type="email" placeholder="E-mail do motorista" defaultValue={pinFor.email ?? ''} required />
+              <input name="password" type="password" minLength={6} placeholder="Senha (mín. 6 caracteres)" autoComplete="new-password" />
               {pinError && <p className="form-error">{pinError}</p>}
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="submit">Salvar PIN</button>
+                <button type="submit">Salvar acesso</button>
                 <button type="button" className="ghost" onClick={() => setPinFor(null)}>Cancelar</button>
               </div>
             </form>

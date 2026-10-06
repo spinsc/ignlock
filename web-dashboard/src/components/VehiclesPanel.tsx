@@ -105,7 +105,7 @@ export function VehiclesPanel() {
           plate: row.plate?.trim() || null,
           model: row.model?.trim() || null,
         },
-        { onConflict: 'vehicle_id' }
+        { onConflict: 'tenant_id,vehicle_id' }
       );
       if (error) errors.push(`${vehicle_id}: ${error.message}`);
       else ok++;

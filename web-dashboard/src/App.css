@@ -388,3 +388,30 @@ tbody tr:last-child td {
   background: rgba(179, 38, 30, 0.12);
   color: var(--danger);
 }
+
+
+/* ---------- Marca ACN, empresa, anúncios, parâmetros ---------- */
+.brand-logo { height: 38px; width: auto; border-radius: 3px; display: block; }
+.brand-block { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tenant-name { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.tenant-select { padding: 3px 6px; border: 1px solid var(--border); border-radius: 3px; background: var(--paper); color: var(--ink); font-size: 13px; max-width: 220px; }
+
+.ads-stack { display: flex; flex-direction: column; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
+.ads-row { display: flex; align-items: center; gap: 10px; padding: 6px 24px; background: var(--paper); color: var(--ink); text-decoration: none; }
+a.ads-row:hover { background: var(--sheet); }
+.ads-row img { height: 30px; width: 30px; object-fit: cover; border-radius: 3px; }
+.ads-text { display: flex; flex-direction: column; line-height: 1.25; }
+.ads-text b { font-size: 12.5px; font-weight: 600; }
+.ads-text small { font-size: 10.5px; color: var(--ink-dim); }
+
+.params-form { display: flex; flex-direction: column; gap: 14px; max-width: 520px; }
+.params-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-dim); }
+.params-form label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); }
+.params-form input[type='text'], .params-form input[type='number'], .params-form input:not([type]) {
+  padding: 9px 11px; border: 1px solid var(--border); border-radius: 3px; background: var(--paper); color: var(--ink); font-size: 13.5px;
+}
+.sub-h { font-size: 14px; margin: 22px 0 8px; }
+.callout-ok { border: 1px solid var(--border); border-left: 3px solid var(--signal); background: var(--paper); padding: 12px 14px; margin-bottom: 14px; font-size: 13.5px; line-height: 1.6; }
+
+.login-logo { width: 150px; height: auto; border-radius: 4px; align-self: flex-start; }
+button.link { background: none; border: none; padding: 0; color: var(--signal); text-decoration: underline; font-size: inherit; cursor: pointer; }

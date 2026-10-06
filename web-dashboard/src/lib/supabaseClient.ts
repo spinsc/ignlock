@@ -25,17 +25,19 @@ export type Driver = {
   id: string;
   driver_code: string;
   full_name: string;
+  email: string | null;
   active: boolean;
   created_at: string;
 };
 
-export type Role = 'admin' | 'operator';
+export type Role = 'superadmin' | 'admin' | 'operator';
 
 export type Profile = {
   id: string;
   email: string;
   full_name: string | null;
   role: Role;
+  tenant_id: string | null;
   created_at: string;
 };
 
@@ -96,6 +98,56 @@ export type SponsorAd = {
   created_at: string;
 };
 
+export type TenantSettings = {
+  validity_options: number[];
+  default_validity_hours: number;
+  emergency_default_hours: number;
+  emergency_max_hours: number;
+  require_final_km: boolean;
+  allow_partner: boolean;
+};
+
+export const DEFAULT_TENANT_SETTINGS: TenantSettings = {
+  validity_options: [4, 8, 12, 24, 48],
+  default_validity_hours: 12,
+  emergency_default_hours: 1,
+  emergency_max_hours: 6,
+  require_final_km: true,
+  allow_partner: true,
+};
+
+export type Tenant = {
+  id: string;
+  slug: string;
+  name: string;
+  status: 'active' | 'suspended';
+  settings: Partial<TenantSettings>;
+  created_at: string;
+};
+
+export type TenantRequest = {
+  id: string;
+  company_name: string;
+  contact_name: string;
+  email: string;
+  phone: string | null;
+  message: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  decided_at: string | null;
+  tenant_id: string | null;
+};
+
+export type TripEnd = {
+  vehicle_id: string;
+  driver_code: string;
+  released_at: string;
+  ended_at: string;
+  end_odometer_km: number | null;
+  odometer_source: 'manual' | 'obd';
+  remaining_seconds: number;
+};
+
 export type UsageSnapshot = {
   vehicle_id: string;
   driver_code: string;
@@ -112,6 +164,7 @@ export type TripLog = {
   odometer_km: number;
   destination: string;
   valid_hours: number;
+  odometer_source: 'manual' | 'obd';
   released_at: string;
   expires_at: string;
   synced_at: string;
