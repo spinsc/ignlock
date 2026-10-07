@@ -22,6 +22,7 @@
   <p>Empresa: <code id="company">—</code></p>
   <p>Toque em <b>Abrir no app</b>. O app abre com a empresa já preenchida; falta só entrar com seu e-mail e senha.</p>
   <a class="btn" id="open" href="#">Abrir no app</a>
+  <a class="alt" id="web" href="driver.html">Usar pelo navegador (Chrome no Android; no iPhone, o navegador Bluefy)</a>
   <a class="alt" id="install" href="https://github.com/spinsc/ignlock/releases/latest" target="_blank" rel="noopener">Ainda não tenho o app — baixar</a>
 </div>
 <script>
@@ -31,11 +32,13 @@
   // Chrome/Android: intent:// abre o app se instalado, e volta para esta página se não.
   var intent = 'intent://join?c=' + encodeURIComponent(c) +
     '#Intent;scheme=ignlock;package=com.ignlock.ignition_lock_app;S.browser_fallback_url=' +
-    encodeURIComponent(location.href) + ';end';
+    encodeURIComponent(location.href + '&fb=1') + ';end'; // fb=1: voltou do fallback (app não instalado)
   var ua = navigator.userAgent || '';
   var href = /Android/i.test(ua) ? intent : scheme;
   document.getElementById('open').href = href;
-  if (c && /Android/i.test(ua)) setTimeout(function () { location.href = href; }, 400);
+  document.getElementById('web').href = 'driver.html?c=' + encodeURIComponent(c);
+  var cameBack = new URLSearchParams(location.search).get('fb') === '1';
+  if (c && !cameBack && /Android/i.test(ua)) setTimeout(function () { location.href = href; }, 400);
 </script>
 </body>
 </html>

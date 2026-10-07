@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import QRCode from 'qrcode';
 import { supabase, type Vehicle } from '../lib/supabaseClient';
 import { csvToObjects, downloadCsv, objectsToCsv } from '../lib/csv';
 import { isWebNfcSupported, vehicleTagPayload, writeVehicleTag } from '../lib/nfcWriter';
@@ -16,6 +17,7 @@ export function VehiclesPanel() {
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [importSummary, setImportSummary] = useState<string | null>(null);
   const [nfc, setNfc] = useState<NfcState | null>(null);
+  const [qrFor, setQrFor] = useState<{ vehicle: Vehicle; dataUrl: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -120,6 +122,14 @@ export function VehiclesPanel() {
     load();
   }
 
+  // QR do veículo (mesmo texto da tag NFC: "VEHICLE_ID;BLE_MAC") para o app web do
+  // motorista, que lê pela câmera — o iPhone não tem NFC na web.
+  async function showQr(v: Vehicle) {
+    if (!v.ble_mac) { setError(`Cadastre o MAC BLE do veículo ${v.vehicle_id} (Editar) antes de gerar o QR.`); return; }
+    const dataUrl = await QRCode.toDataURL(`${v.vehicle_id};${v.ble_mac}`, { width: 360, margin: 2 });
+    setQrFor({ vehicle: v, dataUrl });
+  }
+
   async function handleWriteTag(v: Vehicle) {
     if (nfc?.status === 'writing') return; // evita duas gravações disputando a mesma tag
     if (!v.ble_mac) {
@@ -205,6 +215,7 @@ export function VehiclesPanel() {
                 </td>
                 <td>
                   <button className="ghost" onClick={() => handleWriteTag(v)}>Gravar NFC</button>
+                  <button className="ghost" onClick={() => showQr(v)}>QR</button>
                 </td>
               </tr>
             ))}
@@ -218,6 +229,19 @@ export function VehiclesPanel() {
       )}
 
       {nfc && <NfcWriteDialog state={nfc} onClose={() => setNfc(null)} onRetry={() => handleWriteTag(nfc.vehicle)} />}
+      {qrFor && (
+        <div className="modal-backdrop" onClick={() => setQrFor(null)}>
+          <div className="modal" style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+            <h3>QR do veículo — {qrFor.vehicle.vehicle_id}</h3>
+            <img src={qrFor.dataUrl} alt="QR do veículo" style={{ width: 240, height: 240, background: '#fff' }} />
+            <p className="muted" style={{ padding: 0 }}>Imprima e cole no painel do veículo. O motorista lê com a câmera no app web (no lugar do NFC).</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <a className="ghost-link" href={qrFor.dataUrl} download={`qr-${qrFor.vehicle.vehicle_id}.png`}>Baixar PNG</a>
+              <button type="button" className="ghost" onClick={() => setQrFor(null)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
       {editing && <EditVehicleDialog vehicle={editing} onSave={handleSaveEdit} onClose={() => setEditing(null)} error={error} />}
     </section>
   );

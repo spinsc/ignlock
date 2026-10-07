@@ -41,3 +41,12 @@ O canal BLE com o ESP32 não é autenticado criptograficamente (já era assim): 
 - **Identidade visual**: painel → Parâmetros → cor da marca + logo da empresa (bucket `tenant-logos`, uma pasta por empresa; só o admin da própria empresa grava). O app carrega depois do login (ou já na tela de login, quando o convite identifica a empresa): tema do app na cor da empresa e logo na barra superior. O painel também mostra a logo e usa a cor no destaque da aba.
 - **Convite**: painel → Parâmetros → *Convite de primeiro acesso* gera um **QR code** e um **link** (`.../join.html?c=<código>`). O motorista escaneia/abre no Android: a página abre o app (`ignlock://join?c=<código>`) com a empresa preenchida e a marca da empresa já aplicada; falta só e-mail e senha. Sem o app instalado, a página oferece o download.
 - Nada disso exige build separado por cliente.
+
+## App web do motorista (iPhone sem App Store)
+
+Endereço: `https://spinsc.github.io/ignlock/driver.html` (o link de convite também oferece essa opção). Mesmas funções do app Android: login (empresa + e-mail + senha), liberar, ligar/desligar com contagem, desvincular com KM final e crédito, motorista parceiro, emergência sincronizada, configuração por PIN e anúncios empilhados.
+
+- **Bluetooth**: usa Web Bluetooth. Funciona no **Chrome (Android/PC)**. No **iPhone** o Safari não tem Web Bluetooth: é preciso abrir o endereço no navegador **Bluefy** (App Store).
+- **NFC não existe na web do iPhone**: a identificação do veículo é por **QR code** (painel → Veículos → *QR*, imprimir e colar no painel do carro; mesmo conteúdo da tag NFC). Sem QR, o motorista escolhe o `IGNLOCK-XXXX` na lista Bluetooth.
+- Offline-first: o login só precisa de internet na 1ª vez; logs de viagem e emergências ficam em fila no aparelho e sobem quando houver internet.
+- Limites: o app web não roda em segundo plano (a tela precisa estar aberta para ligar/desligar) e a conexão Bluetooth não é lembrada entre aberturas da página (o navegador pede para escolher o veículo de novo).
