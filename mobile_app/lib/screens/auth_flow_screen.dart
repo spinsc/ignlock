@@ -270,7 +270,13 @@ class _AuthFlowScreenState extends State<AuthFlowScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppTenant.name ?? 'Liberação de Partida'),
+        title: Row(children: [
+          if (AppTenant.settings.logoUrl != null) ...[
+            Image.network(AppTenant.settings.logoUrl!, height: 28, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+            const SizedBox(width: 10),
+          ],
+          Flexible(child: Text(AppTenant.name ?? 'Liberação de Partida', overflow: TextOverflow.ellipsis)),
+        ]),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),

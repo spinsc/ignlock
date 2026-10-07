@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/driver_session_service.dart';
+import '../services/tenant_context.dart';
 
 class LoginScreen extends StatefulWidget {
   final DriverSessionService service;
@@ -19,17 +20,48 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _busy = false;
   String? _error;
   String? _savedCompany; // empresa já lembrada neste celular
+  TenantPreview? _preview; // marca da empresa (convite ou já lembrada)
 
   @override
   void initState() {
     super.initState();
     widget.service.savedTenantName().then((n) {
-      if (mounted) setState(() => _savedCompany = n);
+      if (!mounted) return;
+      setState(() => _savedCompany = n);
+      if (n != null) _loadPreview(n);
+    });
+    DriverSessionService.pendingInvite.addListener(_onInvite);
+    _onInvite(); // convite que abriu o app
+  }
+
+  Future<void> _loadPreview(String company) async {
+    final p = await widget.service.previewTenant(company);
+    if (mounted) setState(() => _preview = p);
+  }
+
+  /// Convite (QR/link): troca para a empresa do convite e deixa só e-mail/senha.
+  Future<void> _onInvite() async {
+    final code = DriverSessionService.pendingInvite.value;
+    if (code == null) return;
+    DriverSessionService.pendingInvite.value = null;
+    final p = await widget.service.previewTenant(code);
+    if (!mounted) return;
+    if (p == null) {
+      setState(() => _error = 'Convite inválido: empresa "$code" não encontrada.');
+      return;
+    }
+    await widget.service.forgetTenant();
+    setState(() {
+      _savedCompany = null;
+      _company.text = code;
+      _preview = p;
+      _error = null;
     });
   }
 
   @override
   void dispose() {
+    DriverSessionService.pendingInvite.removeListener(_onInvite);
     _company.dispose();
     _email.dispose();
     _password.dispose();
@@ -66,7 +98,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _changeCompany() async {
     await widget.service.forgetTenant();
-    if (mounted) setState(() => _savedCompany = null);
+    AppTenant.brand.value = null;
+    if (mounted) setState(() {
+      _savedCompany = null;
+      _preview = null;
+    });
   }
 
   @override
@@ -80,8 +116,27 @@ class _LoginScreenState extends State<LoginScreen> {
           child: ListView(
             children: [
               const SizedBox(height: 8),
-              Image.asset('assets/acn-logo.png', height: 72, alignment: Alignment.centerLeft),
+              if (_preview?.settings.logoUrl != null)
+                Image.network(_preview!.settings.logoUrl!, height: 72, alignment: Alignment.centerLeft,
+                    errorBuilder: (_, __, ___) => Image.asset('assets/acn-logo.png', height: 72, alignment: Alignment.centerLeft))
+              else
+                Image.asset('assets/acn-logo.png', height: 72, alignment: Alignment.centerLeft),
               const SizedBox(height: 20),
+              if (_preview != null && _savedCompany == null) ...[
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Theme.of(context).colorScheme.primary),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.verified_outlined, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('Convite da empresa ${_preview!.name}')),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+              ],
               if (_savedCompany == null)
                 TextFormField(
                   controller: _company,

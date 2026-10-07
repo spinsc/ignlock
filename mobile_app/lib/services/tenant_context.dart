@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// Parâmetros de uso da empresa (painel → aba Parâmetros), lidos no login.
 class TenantSettings {
   final List<int> validityOptions;
@@ -6,6 +8,8 @@ class TenantSettings {
   final int emergencyMaxHours;
   final bool requireFinalKm;
   final bool allowPartner;
+  final Color? brandColor; // cor da marca da empresa (painel → Parâmetros)
+  final String? logoUrl; // logo da empresa
 
   const TenantSettings({
     this.validityOptions = const [4, 8, 12, 24, 48],
@@ -14,6 +18,8 @@ class TenantSettings {
     this.emergencyMaxHours = 6,
     this.requireFinalKm = true,
     this.allowPartner = true,
+    this.brandColor,
+    this.logoUrl,
   });
 
   factory TenantSettings.fromJson(Map<String, dynamic>? j) {
@@ -30,8 +36,15 @@ class TenantSettings {
       emergencyMaxHours: (j['emergency_max_hours'] as num?)?.toInt() ?? d.emergencyMaxHours,
       requireFinalKm: j['require_final_km'] as bool? ?? d.requireFinalKm,
       allowPartner: j['allow_partner'] as bool? ?? d.allowPartner,
+      brandColor: _parseColor(j['brand_color'] as String?),
+      logoUrl: j['logo_url'] as String?,
     );
   }
+}
+
+Color? _parseColor(String? hex) {
+  if (hex == null || !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(hex)) return null;
+  return Color(0xFF000000 | int.parse(hex.substring(1), radix: 16));
 }
 
 /// Vínculo "motorista parceiro": o motorista logado pode operar [vehicleId]
@@ -48,7 +61,15 @@ class PartnerLink {
 class AppTenant {
   static String? id;
   static String? name;
-  static TenantSettings settings = const TenantSettings();
+  static TenantSettings _settings = const TenantSettings();
+  static TenantSettings get settings => _settings;
+  static set settings(TenantSettings s) {
+    _settings = s;
+    brand.value = s.brandColor; // o tema do app acompanha a marca da empresa
+  }
+
+  /// Cor da marca da empresa em uso (null = padrão do app); o MaterialApp escuta.
+  static final ValueNotifier<Color?> brand = ValueNotifier<Color?>(null);
   static List<PartnerLink> partnerLinks = const [];
 
   static bool isPartnerOf(String vehicleId, String officialCode) =>

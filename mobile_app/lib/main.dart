@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:app_links/app_links.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
 import 'screens/auth_flow_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/active_vehicle_store.dart';
 import 'services/driver_session_service.dart';
+import 'services/tenant_context.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,14 +23,18 @@ class IgnitionLockApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Liberação de Partida',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.blue,
-        useMaterial3: true,
+    // O mesmo APK serve a todas as empresas: a cor da marca vem do servidor.
+    return ValueListenableBuilder<Color?>(
+      valueListenable: AppTenant.brand,
+      builder: (context, brand, _) => MaterialApp(
+        title: 'Liberação de Partida',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorSchemeSeed: brand ?? Colors.blue,
+          useMaterial3: true,
+        ),
+        home: const _SessionGate(),
       ),
-      home: const _SessionGate(),
     );
   }
 }
@@ -45,10 +52,32 @@ class _SessionGateState extends State<_SessionGate> {
   DriverSession? _session;
   bool _loading = true;
 
+  StreamSubscription<Uri>? _linkSub;
+
   @override
   void initState() {
     super.initState();
     _restore();
+    _listenInvites();
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
+
+  /// Convite por QR/link: ignlock://join?c=<código da empresa>.
+  void _listenInvites() {
+    void handle(Uri? uri) {
+      if (uri == null || uri.scheme != 'ignlock' || uri.host != 'join') return;
+      final c = uri.queryParameters['c'];
+      if (c != null && c.trim().isNotEmpty) DriverSessionService.pendingInvite.value = c.trim();
+    }
+
+    final links = AppLinks();
+    links.getInitialLink().then(handle).catchError((_) {});
+    _linkSub = links.uriLinkStream.listen(handle, onError: (_) {});
   }
 
   Future<void> _restore() async {

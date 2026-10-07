@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tenant_context.dart';
@@ -18,7 +19,33 @@ enum LoginResult { ok, invalid, locked, offline, tenantNotFound }
 /// lembrada neste celular. A senha é conferida no servidor (`driver_login`);
 /// o hash nunca chega ao celular. Depois do login a liberação do veículo
 /// continua 100% offline.
+/// Empresa vista antes do login (convite), só para exibir a marca.
+class TenantPreview {
+  final String name;
+  final TenantSettings settings;
+  const TenantPreview(this.name, this.settings);
+}
+
 class DriverSessionService {
+  /// Código de empresa recebido por convite (QR/link `ignlock://join?c=...`).
+  static final ValueNotifier<String?> pendingInvite = ValueNotifier<String?>(null);
+
+  /// Resolve a empresa pelo nome/código e devolve nome + marca (sem logar).
+  /// Aplica a cor da marca ao tema já na tela de login.
+  Future<TenantPreview?> previewTenant(String company) async {
+    try {
+      final rows = await _db.rpc('resolve_tenant', params: {'p_name': company.trim()}) as List;
+      if (rows.isEmpty) return null;
+      final r = rows.first as Map<String, dynamic>;
+      final info = await _db.rpc('tenant_info', params: {'p_tenant': r['id']});
+      final st = TenantSettings.fromJson((info as Map<String, dynamic>)['settings'] as Map<String, dynamic>?);
+      AppTenant.brand.value = st.brandColor;
+      return TenantPreview(r['name'] as String, st);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static const _kTenantId = 'tenant_id';
   static const _kTenantName = 'tenant_name';
   static const _kCode = 'driver_code';

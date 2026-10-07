@@ -35,3 +35,9 @@ Opções de tempo de uso (horas), tempo padrão, emergência (padrão e máximo)
 ## Segurança — limites conhecidos
 
 O canal BLE com o ESP32 não é autenticado criptograficamente (já era assim): a exclusividade e o parceiro são verificados pelo app e pelo firmware, mas quem controla o protocolo BLE por conta própria consegue contorná-los. A auditoria (logs, fim de viagem, snapshots) permanece no servidor. O rastreador (SIM7600) ainda grava posições sem `tenant_id`: o servidor o completa pelo `vehicle_id`, que por isso precisa ser **único na plataforma** enquanto o firmware do rastreador não enviar o `TENANT_ID`.
+
+## Marca por empresa e convite de primeiro acesso (mesmo APK)
+
+- **Identidade visual**: painel → Parâmetros → cor da marca + logo da empresa (bucket `tenant-logos`, uma pasta por empresa; só o admin da própria empresa grava). O app carrega depois do login (ou já na tela de login, quando o convite identifica a empresa): tema do app na cor da empresa e logo na barra superior. O painel também mostra a logo e usa a cor no destaque da aba.
+- **Convite**: painel → Parâmetros → *Convite de primeiro acesso* gera um **QR code** e um **link** (`.../join.html?c=<código>`). O motorista escaneia/abre no Android: a página abre o app (`ignlock://join?c=<código>`) com a empresa preenchida e a marca da empresa já aplicada; falta só e-mail e senha. Sem o app instalado, a página oferece o download.
+- Nada disso exige build separado por cliente.

@@ -105,6 +105,8 @@ export type TenantSettings = {
   emergency_max_hours: number;
   require_final_km: boolean;
   allow_partner: boolean;
+  brand_color: string | null;
+  logo_url: string | null;
 };
 
 export const DEFAULT_TENANT_SETTINGS: TenantSettings = {
@@ -114,6 +116,8 @@ export const DEFAULT_TENANT_SETTINGS: TenantSettings = {
   emergency_max_hours: 6,
   require_final_km: true,
   allow_partner: true,
+  brand_color: null,
+  logo_url: null,
 };
 
 export type Tenant = {

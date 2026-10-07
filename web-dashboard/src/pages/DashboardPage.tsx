@@ -32,11 +32,12 @@ export function DashboardPage({ session }: { session: Session }) {
   );
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={tenant?.settings?.brand_color ? ({ '--brand': tenant.settings.brand_color } as React.CSSProperties) : undefined}>
       <header className="topbar">
         <img className="brand-logo" src={`${import.meta.env.BASE_URL}acn-logo.png`} alt="ACN Sinal Verde" />
         <div className="brand-block">
           <span className="brand">IGNLOCK · PAINEL DA FROTA</span>
+          {tenant?.settings?.logo_url && <img className="tenant-logo" src={tenant.settings.logo_url} alt="" />}
           {isSuperadmin && tenants.length > 1 ? (
             <select className="tenant-select" value={tenant?.id ?? ''} onChange={(e) => switchTenant(e.target.value)}>
               {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}

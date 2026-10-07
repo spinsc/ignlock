@@ -415,3 +415,16 @@ a.ads-row:hover { background: var(--sheet); }
 
 .login-logo { width: 150px; height: auto; border-radius: 4px; align-self: flex-start; }
 button.link { background: none; border: none; padding: 0; color: var(--signal); text-decoration: underline; font-size: inherit; cursor: pointer; }
+
+.tenant-logo { height: 22px; width: auto; max-width: 90px; object-fit: contain; display: block; }
+.app-shell { --brand: var(--signal); }
+.tabs button.active { border-bottom: 2px solid var(--brand); }
+.sub-h { font-size: 14px; margin: 18px 0 4px; }
+.color-row { display: flex; align-items: center; gap: 10px; }
+.color-row input[type='color'] { width: 44px; height: 32px; padding: 0; border: 1px solid var(--border); background: none; }
+.logo-preview { display: flex; align-items: center; gap: 12px; }
+.logo-preview img { max-height: 56px; max-width: 160px; background: #fff; border: 1px solid var(--border); padding: 4px; border-radius: 3px; }
+.invite-box { margin-top: 30px; padding-top: 6px; border-top: 1px solid var(--border); }
+.invite-row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; margin-top: 10px; }
+.invite-row img { background: #fff; padding: 6px; border: 1px solid var(--border); border-radius: 3px; }
+.ghost-link { padding: 8px 13px; border: 1px solid var(--border); border-radius: 3px; font-size: 13px; color: var(--ink); text-decoration: none; }

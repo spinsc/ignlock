@@ -1,7 +1,7 @@
 name: ignition_lock_app
 description: App de liberação de partida veicular via NFC + BLE, 100% offline-first.
 publish_to: "none"
-version: 2.0.0+2
+version: 2.0.0+3
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -31,6 +31,7 @@ dependencies:
   provider: ^6.1.2
   uuid: ^4.4.0
   shared_preferences: ^2.3.0 # sessão do motorista (login offline após o 1º acesso)
+  app_links: ^6.3.0 # convite de empresa (ignlock://join?c=...) abre o app já preenchido
   url_launcher: ^6.3.0 # abre o link do anúncio de patrocinador no navegador
 
 dev_dependencies:

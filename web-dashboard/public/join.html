@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGNLOCK — Convite</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #f2f4f4; color: #1b2430; margin: 0; display: grid; place-items: center; min-height: 100vh; padding: 20px; }
+  .card { background: #fff; border: 1px solid #d5dada; border-radius: 6px; padding: 26px; max-width: 380px; width: 100%; text-align: center; }
+  img { width: 150px; border-radius: 4px; }
+  h1 { font-size: 20px; margin: 14px 0 6px; }
+  p { font-size: 14px; line-height: 1.55; color: #4a5560; margin: 8px 0; }
+  a.btn { display: block; margin-top: 14px; padding: 12px; background: #1f6e62; color: #fff; text-decoration: none; border-radius: 4px; font-weight: 600; }
+  a.alt { display: block; margin-top: 10px; font-size: 13px; color: #1f6e62; }
+  code { background: #eef1f1; padding: 2px 6px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <img src="acn-logo.png" alt="ACN Sinal Verde">
+  <h1>Convite IGNLOCK</h1>
+  <p>Empresa: <code id="company">—</code></p>
+  <p>Toque em <b>Abrir no app</b>. O app abre com a empresa já preenchida; falta só entrar com seu e-mail e senha.</p>
+  <a class="btn" id="open" href="#">Abrir no app</a>
+  <a class="alt" id="install" href="https://github.com/spinsc/ignlock/releases/latest" target="_blank" rel="noopener">Ainda não tenho o app — baixar</a>
+</div>
+<script>
+  var c = new URLSearchParams(location.search).get('c') || '';
+  document.getElementById('company').textContent = c || '—';
+  var scheme = 'ignlock://join?c=' + encodeURIComponent(c);
+  // Chrome/Android: intent:// abre o app se instalado, e volta para esta página se não.
+  var intent = 'intent://join?c=' + encodeURIComponent(c) +
+    '#Intent;scheme=ignlock;package=com.ignlock.ignition_lock_app;S.browser_fallback_url=' +
+    encodeURIComponent(location.href) + ';end';
+  var ua = navigator.userAgent || '';
+  var href = /Android/i.test(ua) ? intent : scheme;
+  document.getElementById('open').href = href;
+  if (c && /Android/i.test(ua)) setTimeout(function () { location.href = href; }, 400);
+</script>
+</body>
+</html>
